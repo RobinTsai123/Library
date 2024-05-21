@@ -1,21 +1,23 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const loginBtn = document.getElementById('loginBtn');
-    const registerBtn = document.getElementById('registerBtn');
+    const userBtn = document.getElementById('userBtn');
     const adminLoginBtn = document.getElementById('adminLoginBtn');
 
-    loginBtn.addEventListener('click', function() {
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        alert(`Login attempt with username: ${username} and password: ${password}`);
-    });
-
-    registerBtn.addEventListener('click', function() {
-        alert('Redirecting to registration page...');
-        // You can add the code to redirect to a registration page here
+    userBtn.addEventListener('click', function() {
+        alert('Welcome to our library!');
+        // Replace with the correct URL for the user home page
+        window.location.href = 'frontEnd.html'; // Ensure this file exists in your project directory
     });
 
     adminLoginBtn.addEventListener('click', function() {
-        alert('Redirecting to admin login page...');
-        // You can add the code to redirect to an admin login page here
+        const username = prompt('Enter Admin Username:');
+        const password = prompt('Enter Admin Password:');
+        
+        if (username === 'DatabaseProject' && password === '1234') {
+            alert('Login successful! Redirecting to backend...');
+            // Replace with the correct URL for the admin backend page
+            window.location.href = 'backEnd.html'; // Ensure this file exists in your project directory
+        } else {
+            alert('Error: Incorrect username or password');
+        }
     });
 });
