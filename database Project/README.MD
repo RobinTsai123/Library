@@ -7,7 +7,7 @@ This is a database project for the library management system.
 To get started, follow the steps below:
 
 1. Clone the repository to your local machine.
-2. Navigate to the `dbproj` folder.
+2. Navigate to the `database Project` folder.
 3. Run `npm init` to initialize a new Node.js project.
 4. Install Express by running `npm install express ejs`.
 5. Start building your database project!
