@@ -21,17 +21,3 @@ This project is a database system designed for managing a skincare library. Its 
 3. Log in as a viewer using the provided credentials: `username: viewer, password: viewer123`.
 4. Explore the different features and functionalities of the system.
 5. For detailed instructions on how to use each feature, refer to the user manual.
-
-1. Clone the repository: `git clone https://github.com/RobinTsai123/Library.git`
-2. Navigate to the project directory: `cd Library/database Project`
-3. Install the required dependencies: `npm install`
-4. Start the application: `node app.js`
-
-## Usage
-
-1. Access the application through your web browser at `http://localhost:3000`.
-2. Log in as an administrator using the provided credentials: `username: admin, password: admin123`.
-3. Log in as a viewer using the provided credentials: `username: viewer, password: viewer123`.
-4. Explore the different features and functionalities of the system.
-5. For detailed instructions on how to use each feature, refer to the user manual.
-
