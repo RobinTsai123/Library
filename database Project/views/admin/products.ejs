@@ -1,0 +1,169 @@
+<%- include('layout', { title: 'admin_products', body: `` }) %>
+
+<div class="container mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 filter-sidebar">
+            <div class="accordion" id="accordionExample">
+
+                <!-- Filter by Label -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingLabel">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLabel" aria-expanded="false" aria-controls="collapseLabel">
+                            Filter by Label
+                        </button>
+                    </h2>
+                    <div id="collapseLabel" class="accordion-collapse collapse" aria-labelledby="headingLabel" data-bs-parent="#accordionExample">
+                        <div class="accordion-body">
+                            <div class="list-group">
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByLabel('')">All Labels</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByLabel('Moisturizer')">Moisturizer</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByLabel('Cleanser')">Cleanser</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByLabel('Treatment')">Treatment</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByLabel('Face Mask')">Face Mask</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByLabel('Eye cream')">Eye cream</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByLabel('Sun protect')">Sun protect</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter by Price -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingPrice">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePrice" aria-expanded="false" aria-controls="collapsePrice">
+                            Filter by Price
+                        </button>
+                    </h2>
+                    <div id="collapsePrice" class="accordion-collapse collapse" aria-labelledby="headingPrice" data-bs-parent="#accordionExample">
+                        <div class="accordion-body">
+                            <div class="list-group">
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByPrice(0, 1000000000)">All Prices</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByPrice(0, 50)">Under $50</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByPrice(50, 100)">$50 - $100</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByPrice(100, 200)">$100 - $200</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByPrice(200, 1000000000)">Above $200</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter by Brand -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingBrand">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBrand" aria-expanded="false" aria-controls="collapseBrand">
+                            Filter by Brand
+                        </button>
+                    </h2>
+                    <div id="collapseBrand" class="accordion-collapse collapse" aria-labelledby="headingBrand" data-bs-parent="#accordionExample">
+                        <div class="accordion-body">
+                            <div class="list-group">
+                                <a href="/admin/products?brand=" class="list-group-item list-group-item-action" onclick="filterByBrand('')">All Brands</a>
+                                <% brands.forEach(brand => { %>
+                                    <a href="/admin/products?brand=<%= encodeURIComponent(brand.brand_name) %>&label=<%= labelFilter %>&minPrice=<%= minPrice %>&maxPrice=<%= maxPrice %>" class="list-group-item list-group-item-action" onclick="filterByBrand('<%= encodeURIComponent(brand.brand_name) %>')">
+                                        <%= brand.brand_name %>
+                                    </a>
+                                <% }); %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9">
+            <div class="row mb-4">
+                <h3 class="col-sm">Manage Products</h3>
+                <div class="col-sm" style="text-align: right;">
+                    <a href="/admin/add_product" class="btn btn-primary">Add New Product</a>
+                </div>
+            </div>
+            <table class="table table-striped border">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Brand</th>
+                        <th>Label</th>
+                        <th>Price</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% products.forEach(product => { %>
+                        <tr>
+                            <td><%= truncateText(product.name, 30) %></td>
+                            <td><%= product.brand_name %></td>
+                            <td><%= product.label %></td>
+                            <td><%= product.price %></td>
+                            <td>
+                                <a href="/admin/products/<%= product.ProdID %>/edit" class="btn btn-sm btn-primary">Edit</a>
+                                <form action="/admin/products/<%= product.ProdID %>/delete" method="post" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Confirm Delete Product?')">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <nav>
+                <ul class="pagination justify-content-center">
+                    <% if (page > 1) { %>
+                        <li class="page-item">
+                            <a class="page-link" href="/admin/products?page=<%= page - 1 %>&label=<%= labelFilter %>&minPrice=<%= minPrice %>&maxPrice=<%= maxPrice %>&brand=<%= brandFilter %>">Previous</a>
+                        </li>
+                    <% } %>
+
+                    <% 
+                        const maxPagesToShow = 5;
+                        let startPage = Math.max(1, page - Math.floor(maxPagesToShow / 2));
+                        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                        
+                        if (endPage - startPage + 1 < maxPagesToShow) {
+                            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                        }
+                    %>
+
+                    <% for (let i = startPage; i <= endPage; i++) { %>
+                        <li class="page-item <%= page === i ? 'active' : '' %>">
+                            <a class="page-link" href="/admin/products?page=<%= i %>&label=<%= labelFilter %>&minPrice=<%= minPrice %>&maxPrice=<%= maxPrice %>&brand=<%= brandFilter %>"><%= i %></a>
+                        </li>
+                    <% } %>
+
+                    <% if (page < totalPages) { %>
+                        <li class="page-item">
+                            <a class="page-link" href="/admin/products?page=<%= page + 1 %>&label=<%= labelFilter %>&minPrice=<%= minPrice %>&maxPrice=<%= maxPrice %>&brand=<%= brandFilter %>">Next</a>
+                        </li>
+                    <% } %>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<script>
+    function filterByLabel(label) {
+        window.location.href = `/admin/products?label=${label}&minPrice=${getQueryParam('minPrice')}&maxPrice=${getQueryParam('maxPrice')}&brand=${getQueryParam('brand')}&page=1`;
+        updateFilterSelection('label', label);
+    }
+    
+    function filterByPrice(minPrice, maxPrice) {
+        window.location.href = `/admin/products?label=${getQueryParam('label')}&minPrice=${minPrice}&maxPrice=${maxPrice}&brand=${getQueryParam('brand')}&page=1`;
+        updateFilterSelection('price', `${minPrice}-${maxPrice}`);
+    }
+    
+    function filterByBrand(brand) {
+        window.location.href = `/admin/products?label=${getQueryParam('label')}&minPrice=${getQueryParam('minPrice')}&maxPrice=${getQueryParam('maxPrice')}&brand=${brand}&page=1`;
+        updateFilterSelection('brand', brand);
+    }
+    
+
+    function getQueryParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param) || '';
+    }
+    
+</script>

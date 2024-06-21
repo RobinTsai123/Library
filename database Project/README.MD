@@ -1,32 +1,25 @@
 # Database Project
 
-This is a database project for the library management system.
+This project is a database system designed for managing a skincare library. Its main purpose is to provide a comprehensive solution for organizing skincare products, tracking customer information, and facilitating peer reviews of skincare products within the library.
 
-## Getting Started
+## Key Features
+- Product Management: Add, edit, and delete skincare products from the library's collection.
+- User Management: Keep track of customer information, including usernames, emails, and their reviews on skincare products.
+- Filter Functionality: Easily filter skincare products based on various criteria.
+- Review Functionality: Leave reviews on products for other users to see.
 
-To get started, follow the steps below:
+## Installation
 
-1. Clone the repository to your local machine.
-2. Navigate to the `database Project` folder.
-3. Run `npm init` to initialize a new Node.js project.
-4. Install Express by running `npm install express ejs`.
-5. Start building your database project!
+1. Clone the repository: `git clone https://github.com/RobinTsai123/Library.git`
+2. Navigate to the project directory: `cd Library/database Project`
+3. Install the required dependencies: `npm install`
+4. Start the application: `node app.js`
 
-## Project Structure
+## Usage
 
-The project structure is as follows:
-- `app.js`: The main entry point of the application.
-- `routes/`: This folder contains the route handlers for different endpoints.
-- `models/`: This folder contains the database models.
-- `views/`: This folder contains the views for rendering HTML templates.
-- `public/`: This folder contains static files such as CSS and JavaScript.
+1. Access the application through your web browser at `http://localhost:3000`.
+2. Log in as an administrator using the provided credentials: `username: admin, password: admin123`.
+3. Log in as a viewer using the provided credentials: `username: viewer, password: viewer123`.
+4. Explore the different features and functionalities of the system.
+5. For detailed instructions on how to use each feature, refer to the user manual.
 
-## Starting the Program
-To start the program, follow these steps:
-1. Open a terminal or command prompt.
-2. Navigate to the project's root directory.
-3. Run the command `node app.js`.
-4. The program will start and you should see a message indicating that the server is running.
-5. Open a web browser and visit `http://localhost:3000` to access the application.
-
-Note: Make sure you have Node.js installed on your machine before running the program.

@@ -1,0 +1,107 @@
+<%- include('layout', { title: 'admin_users', body: `` }) %>
+
+<div class="container mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="accordion" id="roleAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingRole">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRole" aria-expanded="true" aria-controls="collapseRole">
+                            Filter by Role
+                        </button>
+                    </h2>
+                    <div id="collapseRole" class="accordion-collapse collapse" aria-labelledby="headingRole" data-bs-parent="#roleAccordion">
+                        <div class="accordion-body">
+                            <div class="list-group">
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByRole('')">All</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByRole('admin')">Admin</a>
+                                <a href="#" class="list-group-item list-group-item-action" onclick="filterByRole('viewer')">Viewer</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+
+        <!-- Main content -->
+        <div class="col-md-9">
+            <div class="row mb-4">
+                <h3 class="col-sm">Manage Users</h3>
+                <div class="col-sm" style="text-align: right;">
+                    <a href="/admin/add_user" class="btn btn-primary">Add New User</a>
+                </div>
+            </div>
+            <table class="table table-striped border">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% users.forEach(user => { %>
+                        <tr>
+                            <td><%= user.username %></td>
+                            <td><%= user.email %></td>
+                            <td><%= user.role %></td>
+                            <td>
+                                <a href="/admin/users/<%= user.UserID %>/edit" class="btn btn-sm btn-primary">Edit</a>
+                                <form action="/admin/users/<%= user.UserID %>/delete" method="post" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Confirm Delete User?')">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <nav>
+                <ul class="pagination justify-content-center">
+                    <% if (page > 1) { %>
+                        <li class="page-item">
+                            <a class="page-link" href="/admin/users?page=<%= page - 1 %>&role=<%= roleFilter %>">Previous</a>
+                        </li>
+                    <% } %>
+
+                    <% 
+                        const maxPagesToShow = 5;
+                        let startPage = Math.max(1, page - Math.floor(maxPagesToShow / 2));
+                        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                        
+                        if (endPage - startPage + 1 < maxPagesToShow) {
+                            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                        }
+                    %>
+
+                    <% for (let i = startPage; i <= endPage; i++) { %>
+                        <li class="page-item <%= page === i ? 'active' : '' %>">
+                            <a class="page-link" href="/admin/users?page=<%= i %>&role=<%= roleFilter %>"><%= i %></a>
+                        </li>
+                    <% } %>
+
+                    <% if (page < totalPages) { %>
+                        <li class="page-item">
+                            <a class="page-link" href="/admin/users?page=<%= page + 1 %>&role=<%= roleFilter %>">Next</a>
+                        </li>
+                    <% } %>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<script>
+    function filterByRole(role) {
+        window.location.href = `/admin/users?role=${role}&page=1`;
+    }
+
+    function getQueryParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param) || '';
+    }
+</script>

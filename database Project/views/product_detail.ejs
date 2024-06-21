@@ -1,0 +1,140 @@
+<%- include('layout', { title: 'Product Details', body:`` }) %>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow-lg mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Product Details</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <h5 class="card-title fw-bold">Name:</h5>
+                                <p class="card-text"><%= product.name %></p>
+                            </div>
+                            <div class="mb-3">
+                                <h5 class="card-title fw-bold">Brand:</h5>
+                                <p class="card-text"><%= product.brand_name %></p>
+                            </div>
+                            <div class="mb-3">
+                                <h5 class="card-title fw-bold">Label:</h5>
+                                <p class="card-text"><%= product.label %></p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <h5 class="card-title fw-bold">Price:</h5>
+                                <p class="card-text">$<%= product.price %></p>
+                            </div>
+                            <div class="mb-3">
+                                <h5 class="card-title fw-bold">Skin Type:</h5>
+                                <p class="card-text"><%= product.skin_type_name %></p>
+                            </div>
+                            <div class="mb-3">
+                                <h5 class="card-title fw-bold">Description:</h5>
+                                <p class="card-text"><%= product.skin_type_description %></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Reviews Section -->
+            <div class="card shadow-lg mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h4 class="mb-0">User Reviews</h4>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="accordionReviews">
+                        <% if (reviews.length > 0) { %>
+                            <% reviews.forEach((review, index) => { %>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading<%= index %>">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<%= index %>" aria-expanded="false" aria-controls="collapse<%= index %>">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <h5 class="card-title mb-0"><%= review.username %></h5>
+                                            </div>
+                                        </button>
+                                    </h2>
+                                    <div id="collapse<%= index %>" class="accordion-collapse collapse" aria-labelledby="heading<%= index %>" data-bs-parent="#accordionReviews">
+                                        <div class="accordion-body">
+                                            <div class="user-rating mb-3">
+                                                <% for (let i = 1; i <= 5; i++) { %>
+                                                    <% if (i <= review.user_rating) { %>
+                                                        <i class="fas fa-star text-warning"></i>
+                                                    <% } else { %>
+                                                        <i class="far fa-star text-warning"></i>
+                                                    <% } %>
+                                                <% } %>
+                                                <small class="text-muted" style="float:right;"><%= new Date(review.created_at).toLocaleDateString() %></small>
+
+                                            </div>
+                                            <p class="card-text"><%= review.review %></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        <% } else { %>
+                            <p class="text-muted">No reviews yet. Be the first to review this product!</p>
+                        <% } %>  
+                    </div>                  
+                </div>
+                <div class="card-footer">
+                    <% if (!userHasReviewed) { %>
+                        <!-- Button trigger modal -->
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#reviewModal">
+                            Add Review
+                        </button>
+                    <% } else { %>
+                        <!-- Button trigger modal for update -->
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#reviewModal">
+                            Update Your Review
+                        </button>
+                        <a href="/delete_review/<%= product.ProdID %>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete your review?');">
+                            Delete Your Review
+                        </a>
+                    <% } %>
+                </div>
+            </div>
+            
+            
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Add/Update Review -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="reviewForm" action="<%= userHasReviewed ? '/update_review/' + product.ProdID : '/add_review/' + product.ProdID %>" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reviewModalLabel"><%= userHasReviewed ? 'Update Review' : 'Add Review' %></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="userRating" class="form-label">Rating:</label>
+                        <select class="form-select" id="userRating" name="userRating" required>
+                            <option value="">Select Rating</option>
+                            <option value="1">1 Star</option>
+                            <option value="2">2 Stars</option>
+                            <option value="3">3 Stars</option>
+                            <option value="4">4 Stars</option>
+                            <option value="5">5 Stars</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="reviewText" class="form-label">Review:</label>
+                        <textarea class="form-control" id="reviewText" name="reviewText" rows="4" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary"><%= userHasReviewed ? 'Update' : 'Submit' %></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

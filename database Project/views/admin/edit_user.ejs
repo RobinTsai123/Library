@@ -1,0 +1,43 @@
+<%- include('layout', { title: 'Edit User', body: `` }) %>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <h3>Edit User</h3>
+            <form action="/admin/users/<%= user.UserID %>/edit" method="post">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" value="<%= user.username %>" required>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" value="<%= user.email %>" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password">
+                    <small class="form-text text-muted">Leave blank to keep current password</small>
+                </div>
+                <div class="mb-3">
+                    <label for="role" class="form-label">Role</label>
+                    <select class="form-select" id="role" name="role" required>
+                        <option value="admin" <%= user.role == 'admin' ? 'selected' : '' %>>Admin</option>
+                        <option value="viewer" <%= user.role == 'viewer' ? 'selected' : '' %>>Viewer</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="gender" class="form-label">Gender</label>
+                    <select class="form-select" id="gender" name="gender" required>
+                        <option value="male" <%= user.gender == 'male' ? 'selected' : '' %>>Male</option>
+                        <option value="female" <%= user.gender == 'female' ? 'selected' : '' %>>Female</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="age" class="form-label">Age</label>
+                    <input type="number" class="form-control" id="age" name="age" value="<%= user.age %>" required>
+                </div>
+                <button type="submit" class="btn btn-primary" onclick="return confirm('Confirm Edit?')">Update User</button>
+            </form>
+        </div>
+    </div>
+</div>
