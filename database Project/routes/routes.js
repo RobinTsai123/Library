@@ -82,28 +82,41 @@ router.get('/product_list', preventUnauthorisedAccess, (req, res, next) => {
     const brandFilter = req.query.brand || '';
     const minPrice = parseFloat(req.query.minPrice) || 0;
     const maxPrice = parseFloat(req.query.maxPrice) || 1000000000;
+    const minRating = parseFloat(req.query.minRating) || 0; // New filter for minimum average rating
 
     // SQL query to fetch brands for filter options
     const brandsQuery = 'SELECT * FROM Brands';
 
-    // SQL count query with JOIN
+    // SQL count query with JOIN and average rating filter
     const countQuery = `
         SELECT COUNT(*) as count 
         FROM Products p 
         LEFT JOIN Brands b ON p.brandID = b.BrandID 
+        LEFT JOIN (
+            SELECT prodID, AVG(user_rating) AS avg_rating 
+            FROM Reviews 
+            GROUP BY prodID
+        ) r ON p.ProdID = r.prodID
         WHERE (p.label LIKE ?) 
           AND (p.price BETWEEN ? AND ?) 
           AND (b.brand_name LIKE ?)
+          AND (COALESCE(r.avg_rating, 0) >= ?)
     `;
 
-    // SQL products query with JOIN
+    // SQL products query with JOIN and average rating filter
     const productsQuery = `
-        SELECT p.*, b.brand_name 
+        SELECT p.*, b.brand_name, COALESCE(r.avg_rating, 0) AS avg_rating
         FROM Products p 
         LEFT JOIN Brands b ON p.brandID = b.BrandID 
+        LEFT JOIN (
+            SELECT prodID, AVG(user_rating) AS avg_rating 
+            FROM Reviews 
+            GROUP BY prodID
+        ) r ON p.ProdID = r.prodID
         WHERE (p.label LIKE ?) 
           AND (p.price BETWEEN ? AND ?) 
           AND (b.brand_name LIKE ?)
+          AND (COALESCE(r.avg_rating, 0) >= ?)
         ORDER BY p.ProdID ASC
         LIMIT ? OFFSET ?
     `;
@@ -112,7 +125,7 @@ router.get('/product_list', preventUnauthorisedAccess, (req, res, next) => {
     const brandPattern = `%${brandFilter}%`;
 
     // Execute count query to get total count of products
-    connection.query(countQuery, [labelPattern, minPrice, maxPrice, brandPattern], (err, countResult) => {
+    connection.query(countQuery, [labelPattern, minPrice, maxPrice, brandPattern, minRating], (err, countResult) => {
         if (err) {
             return next(err);
         }
@@ -121,7 +134,7 @@ router.get('/product_list', preventUnauthorisedAccess, (req, res, next) => {
         const totalPages = Math.ceil(totalProducts / limit);
 
         // Execute products query to fetch products for the current page
-        connection.query(productsQuery, [labelPattern, minPrice, maxPrice, brandPattern, limit, offset], (err, productsResult) => {
+        connection.query(productsQuery, [labelPattern, minPrice, maxPrice, brandPattern, minRating, limit, offset], (err, productsResult) => {
             if (err) {
                 return next(err);
             }
@@ -149,6 +162,109 @@ router.get('/product_list', preventUnauthorisedAccess, (req, res, next) => {
     });
 });
 
+// Route to fetch and display top 9 best rated products for users
+router.get('/best_rated_products', preventUnauthorisedAccess, (req, res, next) => {
+    // SQL query to fetch top 9 best rated products
+    const bestRatedProductsQuery = `
+        SELECT p.*, b.brand_name, COALESCE(r.avg_rating, 0) AS avg_rating
+        FROM Products p 
+        LEFT JOIN Brands b ON p.brandID = b.BrandID 
+        LEFT JOIN (
+            SELECT prodID, AVG(user_rating) AS avg_rating 
+            FROM Reviews 
+            GROUP BY prodID
+        ) r ON p.ProdID = r.prodID
+        ORDER BY COALESCE(r.avg_rating, 0) DESC
+        LIMIT 15
+    `;
+
+    // Execute query to fetch top 9 best rated products
+    connection.query(bestRatedProductsQuery, (err, products) => {
+        if (err) {
+            return next(err);
+        }
+        res.render('best_rated_products', { 
+            products:products, 
+            user: req.session.user 
+        });
+    });
+});
+
+// Route to fetch and display reviews of user
+router.get('/review_list', preventUnauthorisedAccess, (req, res, next) => {
+    const user = req.session.user;
+    const page = parseInt(req.query.page) || 1;
+    const limit = 10; // Number of reviews per page
+    const offset = (page - 1) * limit;
+    const ratingFilter = parseInt(req.query.rating) || 0;
+    const productFilter = req.query.product || '';
+
+    // SQL query to fetch products for filter options
+    const productsQuery = 'SELECT * FROM Products';
+    
+    // SQL count query with JOIN, filtering by user ID
+    const countQuery = `
+        SELECT COUNT(*) as count 
+        FROM Reviews r 
+        LEFT JOIN Products p ON r.prodID = p.ProdID 
+        WHERE (r.user_rating >= ?) 
+        AND (p.name LIKE ?)
+        AND (r.userID = ?)
+    `;
+
+    // SQL reviews query with JOIN, filtering by user ID
+    const reviewsQuery = `
+        SELECT r.*, p.name as product_name, u.username 
+        FROM Reviews r 
+        LEFT JOIN Products p ON r.prodID = p.ProdID 
+        LEFT JOIN Users u ON r.userID = u.UserID 
+        WHERE (r.user_rating >= ?) 
+        AND (p.name LIKE ?)
+        AND (r.userID = ?)
+        ORDER BY r.RevID ASC
+        LIMIT ? OFFSET ?
+    `;
+
+    const productPattern = `%${productFilter}%`;
+
+    // Execute count query to get total count of reviews
+    connection.query(countQuery, [ratingFilter, productPattern, user.id], (err, countResult) => {
+        if (err) {
+            return next(err);
+        }
+
+        const totalReviews = countResult[0].count;
+        const totalPages = Math.ceil(totalReviews / limit);
+
+        // Execute reviews query to fetch reviews for the current page
+        connection.query(reviewsQuery, [ratingFilter, productPattern, user.id, limit, offset], (err, reviewsResult) => {
+            if (err) {
+                return next(err);
+            }
+
+            // Execute products query to fetch products for filter options
+            connection.query(productsQuery, (err, productResults) => {
+                if (err) {
+                    return next(err);
+                }
+
+                // Render the review list view with fetched data
+                res.render('review_list', {
+                    products: productResults,
+                    reviews: reviewsResult,
+                    page: page,
+                    totalPages: totalPages,
+                    ratingFilter: ratingFilter,
+                    productFilter: productFilter,
+                    user: user,
+                    truncateText:utils.truncateText
+                });
+            });
+        });
+    });
+});
+
+
 // individual product page
 router.get('/product_detail/:id', preventUnauthorisedAccess, (req, res, next) => {
     const productId = req.params.id;
@@ -170,6 +286,13 @@ router.get('/product_detail/:id', preventUnauthorisedAccess, (req, res, next) =>
         ORDER BY r.userID = ? DESC, r.created_at DESC
     `;
 
+    const ingredientsQuery = `
+        SELECT i.*
+        FROM Ingredients i
+        JOIN Prod_Ing_Mapping pim ON i.IngID = pim.IngID
+        WHERE pim.ProdID = ?
+    `;
+
     connection.query(productQuery, [productId], (err, productResults) => {
         if (err) {
             return next(err);
@@ -187,28 +310,37 @@ router.get('/product_detail/:id', preventUnauthorisedAccess, (req, res, next) =>
                 return next(err); // Handle error
             }
 
-            // Separate current user's review from others
-            const currentUserReview = reviewResults.find(review => review.userID === userId);
-            const otherReviews = reviewResults.filter(review => review.userID !== userId);
+            connection.query(ingredientsQuery, [productId], (err, ingredientsResults) => {
+                if (err) {
+                    console.error('Error fetching ingredients:', err);
+                    return next(err); // Handle error
+                }
 
-            // Combine reviews with current user's review prioritized first
-            const combinedReviews = [];
-            if (currentUserReview) {
-                combinedReviews.push(currentUserReview);
-            }
-            combinedReviews.push(...otherReviews);
+                // Separate current user's review from others
+                const currentUserReview = reviewResults.find(review => review.userID === userId);
+                const otherReviews = reviewResults.filter(review => review.userID !== userId);
 
-            res.render('product_detail', {
-                title: 'Product Details', // Pass any title or variables needed for the layout
-                body: '', // Pass any other variables needed for the layout
-                product: product,
-                reviews: combinedReviews,
-                userHasReviewed: !!currentUserReview, // Boolean flag if current user has reviewed
-                user: req.session.user
+                // Combine reviews with current user's review prioritized first
+                const combinedReviews = [];
+                if (currentUserReview) {
+                    combinedReviews.push(currentUserReview);
+                }
+                combinedReviews.push(...otherReviews);
+
+                res.render('product_detail', {
+                    title: 'Product Details', // Pass any title or variables needed for the layout
+                    body: '', // Pass any other variables needed for the layout
+                    product: product,
+                    reviews: combinedReviews,
+                    ingredients: ingredientsResults, // Pass ingredients to the template
+                    userHasReviewed: !!currentUserReview, // Boolean flag if current user has reviewed
+                    user: req.session.user
+                });
             });
         });
     });
 });
+
 
 // Route to handle updating a review
 router.post('/update_review/:productId', preventUnauthorisedAccess, (req, res, next) => {
@@ -267,6 +399,28 @@ router.get('/delete_review/:productId', preventUnauthorisedAccess, (req, res, ne
     `;
 
     connection.query(deleteReviewQuery, [productId, userId], (err, deleteResult) => {
+        if (err) {
+            console.error('Error deleting review:', err);
+            return next(err);
+        }
+
+        // Redirect to the product detail page after deletion
+        res.redirect(`/product_detail/${productId}`);
+    });
+});
+
+// Route to handle deleting a review for admin
+router.get('/admin_delete_review/:productId/:reviewId', preventUnauthorisedAccess, (req, res, next) => {
+    const productId = req.params.productId;
+    const reviewId = req.params.reviewId;
+
+    // Assuming you have a delete operation in your database
+    const deleteReviewQuery = `
+        DELETE FROM Reviews
+        WHERE RevID = ?
+    `;
+
+    connection.query(deleteReviewQuery, [reviewId], (err, deleteResult) => {
         if (err) {
             console.error('Error deleting review:', err);
             return next(err);
@@ -667,6 +821,84 @@ router.post('/admin/users/:id/edit', isAdmin, (req, res, next) => {
     });
 });
 
+// Route to manage reviews
+router.get('/admin/reviews', isAdmin, (req, res, next) => {
+    truncateText = utils.truncateText;
+    const page = parseInt(req.query.page) || 1;
+    const productFilter = req.query.product || '';
+    const userFilter = req.query.user || '';
+    const itemsPerPage = 10;
+    const offset = (page - 1) * itemsPerPage;
+
+    let filterQuery = '';
+    if (productFilter) {
+        filterQuery += ` AND r.prodID = ${connection.escape(productFilter)}`;
+    }
+    if (userFilter) {
+        filterQuery += ` AND r.userID = ${connection.escape(userFilter)}`;
+    }
+
+    const sqlCount = `
+        SELECT COUNT(*) as totalCount 
+        FROM Reviews r 
+        JOIN Users u ON r.userID = u.UserID 
+        JOIN Products p ON r.prodID = p.ProdID
+        WHERE 1=1 ${filterQuery}
+    `;
+
+    const sqlData = `
+        SELECT r.*, u.username, p.name 
+        FROM Reviews r 
+        JOIN Users u ON r.userID = u.UserID 
+        JOIN Products p ON r.prodID = p.ProdID 
+        WHERE 1=1 ${filterQuery}
+        ORDER BY r.created_at DESC
+        LIMIT ${itemsPerPage} OFFSET ${offset}
+    `;
+
+    // Get total count of reviews
+    connection.query(sqlCount, (err, countResults) => {
+        if (err) {
+            return next(err);
+        }
+
+        const totalItems = countResults[0].totalCount;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+        // Get reviews with pagination and filtering
+        connection.query(sqlData, (err, reviewResults) => {
+            if (err) {
+                return next(err);
+            }
+
+            // Get the list of products for the filter sidebar
+            connection.query('SELECT ProdID, name FROM Products', (err, productResults) => {
+                if (err) {
+                    return next(err);
+                }
+
+                // Get the list of users for the filter sidebar
+                connection.query(`SELECT UserID, username FROM Users WHERE role = 'viewer'`, (err, userResults) => {
+                    if (err) {
+                        return next(err);
+                    }
+
+                    res.render('admin/reviews', {
+                        reviews: reviewResults,
+                        products: productResults,
+                        users: userResults,
+                        page: page,
+                        totalPages: totalPages,
+                        productFilter: productFilter,
+                        userFilter: userFilter,
+                        truncateText: truncateText
+                    });
+                });
+            });
+        });
+    });
+});
+
 // Route to show the add product form
 router.get('/admin/add_product', isAdmin, (req, res, next) => {
     const brandSql = 'SELECT * FROM Brands ORDER BY brand_name ASC';
@@ -687,7 +919,7 @@ router.get('/admin/add_product', isAdmin, (req, res, next) => {
                 if (err) {
                     return next(err);
                 }
-
+;
                 res.render('admin/add_product', {
                     brands: brandResults,
                     skinTypes: skinTypeResults,

@@ -93,7 +93,7 @@
                 <tbody>
                     <% products.forEach(product => { %>
                         <tr>
-                            <td><%= truncateText(product.name, 30) %></td>
+                            <td><a href="/product_detail/<%= product.ProdID %>"><%= truncateText(product.name, 30) %></a></td>
                             <td><%= product.brand_name %></td>
                             <td><%= product.label %></td>
                             <td><%= product.price %></td>

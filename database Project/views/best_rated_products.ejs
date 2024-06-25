@@ -1,0 +1,32 @@
+<% if (user.role == 'admin') { %>
+    <%- include('admin/layout', { title: 'Product Details', body:`` }) %>
+<% } else { %>
+    <%- include('layout', { title: 'Product Details', body:`` }) %>
+<% } %>
+
+<div class="container mt-4">
+    <!-- Main content -->
+    <div class="col-md-9">
+        <div class="row mb-4">
+            <h3 class="col-sm">Products</h3>
+        </div>
+        <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
+            <% products.forEach(product => { %>
+                <div class="col">
+                    <div class="card h-100 d-flex flex-column">
+                        <div class="card-body flex-grow-1">
+                            <h5 class="card-title"><%= product.name %></h5>
+                            <h6 class="card-subtitle mb-2 text-muted"><%= product.brand_name %></h6>
+                            <p class="card-text">Label: <%= product.label %></p>
+                            <p class="card-text">Price: <%= product.price %></p>
+                            <p class="card-text">Average Rating: <%= product.avg_rating.toFixed(1) %></p> <!-- Display average rating -->
+                        </div>
+                        <div class="card-footer mt-auto">
+                            <a href="/product_detail/<%= product.ProdID %>" class="btn btn-primary stretched-link">View Product</a>
+                        </div>
+                    </div>
+                </div>
+            <% }); %>
+        </div>
+    </div>
+</div>

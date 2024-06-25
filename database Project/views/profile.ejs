@@ -1,4 +1,8 @@
-<%- include('layout', { title: 'User Profile', body: `` }) %>
+<% if (user.role == 'admin') { %>
+    <%- include('admin/layout', { title: 'Product Details', body:`` }) %>
+<% } else { %>
+    <%- include('layout', { title: 'Product Details', body:`` }) %>
+<% } %>
 
 <div class="container mt-4">
     <div class="row justify-content-center">
