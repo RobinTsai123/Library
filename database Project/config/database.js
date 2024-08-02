@@ -22,7 +22,7 @@ mysqlConnection.connect((err) => {
 });
 
 // MongoDB setup
-const mongoUri = "mongodb+srv://D5DatabaseProject:<password>@databaseproject.aznccga.mongodb.net/?retryWrites=true&w=majority&appName=databaseProject";
+const mongoUri = "mongodb+srv://D5DatabaseProject:zTldmjgQkX58dGvc@databaseproject.aznccga.mongodb.net/?retryWrites=true&w=majority&appName=databaseProject";
 const mongoClient = new MongoClient(mongoUri, {
     serverApi: {
         version: ServerApiVersion.v1,
