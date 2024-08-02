@@ -1,0 +1,38 @@
+<% if (user.role == 'admin') { %>
+    <%- include('admin/layout', { title: 'My Favourites', body: `` }) %>
+<% } else { %>
+    <%- include('layout', { title: 'My Favourites', body: `` }) %>
+<% } %>
+
+<div class="container mt-4">
+    <div class="row">
+        <!-- Main content -->
+        <div class="col-md-12">
+            <div class="row mb-4">
+                <h3 class="col-sm">My Favourites</h3>
+            </div>
+            <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
+                <% if (favourites.length > 0) { %>
+                    <% favourites.forEach(product => { %>
+                        <div class="col">
+                            <div class="card h-100 d-flex flex-column">
+                                <div class="card-body flex-grow-1">
+                                    <h5 class="card-title"><%= product.name %></h5>
+                                    <h6 class="card-subtitle mb-2 text-muted"><%= product.brand_name %></h6>
+                                    <p class="card-text">Label: <%= product.label %></p>
+                                    <p class="card-text">Price: $<%= product.price %></p>
+                                    <p class="card-text">Average Rating: <%= product.avg_rating %></p>
+                                </div>
+                                <div class="card-footer mt-auto">
+                                    <a href="/product_detail/<%= product.ProdID %>" class="btn btn-primary stretched-link">View Product</a>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                <% } else { %>
+                    <p>No favourite products found.</p>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>

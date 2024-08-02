@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const connection = require('../config/database'); // Adjust the path as per your project structure
+const { mysqlConnection, connectToMongoDB, closeMongoDBConnection } = require('../config/database');
 const utils = require('../public/javascript/utils'); // Adjust the path as per your project structure
 
 // Middleware to check if user is admin
@@ -52,7 +52,7 @@ router.use((req, res, next) => {
 // Function to execute SQL query with promise
 function queryPromise(sql, params) {
     return new Promise((resolve, reject) => {
-        connection.query(sql, params, (err, results) => {
+        mysqlConnection.query(sql, params, (err, results) => {
             if (err) {
                 reject(err);
             } else {
@@ -125,7 +125,7 @@ router.get('/product_list', preventUnauthorisedAccess, (req, res, next) => {
     const brandPattern = `%${brandFilter}%`;
 
     // Execute count query to get total count of products
-    connection.query(countQuery, [labelPattern, minPrice, maxPrice, brandPattern, minRating], (err, countResult) => {
+    mysqlConnection.query(countQuery, [labelPattern, minPrice, maxPrice, brandPattern, minRating], (err, countResult) => {
         if (err) {
             return next(err);
         }
@@ -134,13 +134,13 @@ router.get('/product_list', preventUnauthorisedAccess, (req, res, next) => {
         const totalPages = Math.ceil(totalProducts / limit);
 
         // Execute products query to fetch products for the current page
-        connection.query(productsQuery, [labelPattern, minPrice, maxPrice, brandPattern, minRating, limit, offset], (err, productsResult) => {
+        mysqlConnection.query(productsQuery, [labelPattern, minPrice, maxPrice, brandPattern, minRating, limit, offset], (err, productsResult) => {
             if (err) {
                 return next(err);
             }
 
             // Execute brands query to fetch brands for filter options
-            connection.query(brandsQuery, (err, brandResults) => {
+            mysqlConnection.query(brandsQuery, (err, brandResults) => {
                 if (err) {
                     return next(err);
                 }
@@ -179,7 +179,7 @@ router.get('/best_rated_products', preventUnauthorisedAccess, (req, res, next) =
     `;
 
     // Execute query to fetch top 9 best rated products
-    connection.query(bestRatedProductsQuery, (err, products) => {
+    mysqlConnection.query(bestRatedProductsQuery, (err, products) => {
         if (err) {
             return next(err);
         }
@@ -228,7 +228,7 @@ router.get('/review_list', preventUnauthorisedAccess, (req, res, next) => {
     const productPattern = `%${productFilter}%`;
 
     // Execute count query to get total count of reviews
-    connection.query(countQuery, [ratingFilter, productPattern, user.id], (err, countResult) => {
+    mysqlConnection.query(countQuery, [ratingFilter, productPattern, user.id], (err, countResult) => {
         if (err) {
             return next(err);
         }
@@ -237,13 +237,13 @@ router.get('/review_list', preventUnauthorisedAccess, (req, res, next) => {
         const totalPages = Math.ceil(totalReviews / limit);
 
         // Execute reviews query to fetch reviews for the current page
-        connection.query(reviewsQuery, [ratingFilter, productPattern, user.id, limit, offset], (err, reviewsResult) => {
+        mysqlConnection.query(reviewsQuery, [ratingFilter, productPattern, user.id, limit, offset], (err, reviewsResult) => {
             if (err) {
                 return next(err);
             }
 
             // Execute products query to fetch products for filter options
-            connection.query(productsQuery, (err, productResults) => {
+            mysqlConnection.query(productsQuery, (err, productResults) => {
                 if (err) {
                     return next(err);
                 }
@@ -266,7 +266,7 @@ router.get('/review_list', preventUnauthorisedAccess, (req, res, next) => {
 
 
 // individual product page
-router.get('/product_detail/:id', preventUnauthorisedAccess, (req, res, next) => {
+router.get('/product_detail/:id', preventUnauthorisedAccess, async (req, res, next) => {
     const productId = req.params.id;
     const userId = req.session.user.id;
 
@@ -293,10 +293,14 @@ router.get('/product_detail/:id', preventUnauthorisedAccess, (req, res, next) =>
         WHERE pim.ProdID = ?
     `;
 
-    connection.query(productQuery, [productId], (err, productResults) => {
-        if (err) {
-            return next(err);
-        }
+    let db;
+    try {
+        // Connect to MongoDB
+        db = await connectToMongoDB();
+        const favouritesCollection = db.collection("favourites");
+
+        // Query MySQL for product details
+        const [productResults] = await mysqlConnection.promise().query(productQuery, [productId]);
 
         if (productResults.length === 0) {
             return res.status(404).send('Product not found');
@@ -304,41 +308,45 @@ router.get('/product_detail/:id', preventUnauthorisedAccess, (req, res, next) =>
 
         const product = productResults[0];
 
-        connection.query(reviewsQuery, [productId, userId], (err, reviewResults) => {
-            if (err) {
-                console.error('Error fetching reviews:', err);
-                return next(err); // Handle error
-            }
+        // Query MySQL for reviews
+        const [reviewResults] = await mysqlConnection.promise().query(reviewsQuery, [productId, userId]);
 
-            connection.query(ingredientsQuery, [productId], (err, ingredientsResults) => {
-                if (err) {
-                    console.error('Error fetching ingredients:', err);
-                    return next(err); // Handle error
-                }
+        // Query MySQL for ingredients
+        const [ingredientsResults] = await mysqlConnection.promise().query(ingredientsQuery, [productId]);
 
-                // Separate current user's review from others
-                const currentUserReview = reviewResults.find(review => review.userID === userId);
-                const otherReviews = reviewResults.filter(review => review.userID !== userId);
+        // Check if the product is in the user's favourites
+        const favData = await favouritesCollection.findOne({ userID: userId });
+        const isFavourite = favData ? favData.favourite_prodID.includes(parseInt(productId)) : false;
 
-                // Combine reviews with current user's review prioritized first
-                const combinedReviews = [];
-                if (currentUserReview) {
-                    combinedReviews.push(currentUserReview);
-                }
-                combinedReviews.push(...otherReviews);
+        // Separate current user's review from others
+        const currentUserReview = reviewResults.find(review => review.userID === userId);
+        const otherReviews = reviewResults.filter(review => review.userID !== userId);
 
-                res.render('product_detail', {
-                    title: 'Product Details', // Pass any title or variables needed for the layout
-                    body: '', // Pass any other variables needed for the layout
-                    product: product,
-                    reviews: combinedReviews,
-                    ingredients: ingredientsResults, // Pass ingredients to the template
-                    userHasReviewed: !!currentUserReview, // Boolean flag if current user has reviewed
-                    user: req.session.user
-                });
-            });
+        // Combine reviews with current user's review prioritized first
+        const combinedReviews = [];
+        if (currentUserReview) {
+            combinedReviews.push(currentUserReview);
+        }
+        combinedReviews.push(...otherReviews);
+
+        // Render the product detail page
+        res.render('product_detail', {
+            title: 'Product Details',
+            body: '',
+            product: product,
+            reviews: combinedReviews,
+            ingredients: ingredientsResults,
+            userHasReviewed: !!currentUserReview,
+            is_favourite: isFavourite,
+            user: req.session.user
         });
-    });
+
+    } catch (err) {
+        console.error('Error:', err);
+        next(err);
+    } finally {
+        await closeMongoDBConnection();
+    }
 });
 
 
@@ -355,7 +363,7 @@ router.post('/update_review/:productId', preventUnauthorisedAccess, (req, res, n
         WHERE prodID = ? AND userID = ?
     `;
 
-    connection.query(updateReviewQuery, [userRating, reviewText, productId, userId], (err, updateResult) => {
+    mysqlConnection.query(updateReviewQuery, [userRating, reviewText, productId, userId], (err, updateResult) => {
         if (err) {
             console.error('Error updating review:', err);
             return next(err);
@@ -377,7 +385,7 @@ router.post('/add_review/:productId', preventUnauthorisedAccess, (req, res, next
         VALUES (?, ?, ?, ?, NOW())
     `;
 
-    connection.query(insertReviewQuery, [productId, userId, userRating, reviewText], (err, insertResult) => {
+    mysqlConnection.query(insertReviewQuery, [productId, userId, userRating, reviewText], (err, insertResult) => {
         if (err) {
             console.error('Error adding review:', err);
             return next(err);
@@ -398,7 +406,7 @@ router.get('/delete_review/:productId', preventUnauthorisedAccess, (req, res, ne
         WHERE prodID = ? AND userID = ?
     `;
 
-    connection.query(deleteReviewQuery, [productId, userId], (err, deleteResult) => {
+    mysqlConnection.query(deleteReviewQuery, [productId, userId], (err, deleteResult) => {
         if (err) {
             console.error('Error deleting review:', err);
             return next(err);
@@ -420,7 +428,7 @@ router.get('/admin_delete_review/:productId/:reviewId', preventUnauthorisedAcces
         WHERE RevID = ?
     `;
 
-    connection.query(deleteReviewQuery, [reviewId], (err, deleteResult) => {
+    mysqlConnection.query(deleteReviewQuery, [reviewId], (err, deleteResult) => {
         if (err) {
             console.error('Error deleting review:', err);
             return next(err);
@@ -435,7 +443,7 @@ router.get('/admin_delete_review/:productId/:reviewId', preventUnauthorisedAcces
 router.get('/profile', preventUnauthorisedAccess, (req, res) => {
     const userId = req.session.user.id;
     const sql = 'SELECT * FROM Users WHERE UserID = ?';
-    connection.query(sql, [userId], (err, results) => {
+    mysqlConnection.query(sql, [userId], (err, results) => {
         if (err) {
             return next(err);
         }
@@ -452,7 +460,7 @@ router.get('/delete_profile', preventUnauthorisedAccess, (req, res, next) => {
             return res.status(500).json({ error: 'Logout failed' });
         }
         const sql = 'DELETE FROM Users WHERE UserID = ?';
-        connection.query(sql, [userId], (err, result) => {
+        mysqlConnection.query(sql, [userId], (err, result) => {
             if (err) {
                 return next(err);
             }
@@ -465,7 +473,7 @@ router.get('/delete_profile', preventUnauthorisedAccess, (req, res, next) => {
 router.get('/edit_profile', preventUnauthorisedAccess, (req, res) => {
     const userId = req.session.user.id;
     const sql = 'SELECT * FROM Users WHERE UserID = ?';
-    connection.query(sql, [userId], (err, results) => {
+    mysqlConnection.query(sql, [userId], (err, results) => {
         if (err) {
             return next(err);
         }
@@ -490,7 +498,7 @@ router.post('/edit_profile', preventUnauthorisedAccess, (req, res, next) => {
         params = [username, email, hashedPassword, age, gender, userId];
     }
 
-    connection.query(sql, params, (err, results) => {
+    mysqlConnection.query(sql, params, (err, results) => {
         if (err) {
             return next(err);
         }
@@ -513,7 +521,7 @@ router.post('/signup', preventLoggedInAccess, (req, res, next) => {
     const sql = 'INSERT INTO Users (role, username, email, password, age, gender) VALUES (?, ?, ?, ?, ?, ?)';
     const params = [role, username, email, hashedPassword, age, gender];
 
-    connection.query(sql, params, (err, results) => {
+    mysqlConnection.query(sql, params, (err, results) => {
         if (err) {
             return next(err);
         }
@@ -537,7 +545,7 @@ router.post('/change-password', preventUnauthorisedAccess, (req, res) => {
 
     // Fetch the user's current password hash from the database
     const sqlFetch = 'SELECT password FROM Users WHERE id = ?';
-    connection.query(sqlFetch, [userId], (err, results) => {
+    mysqlConnection.query(sqlFetch, [userId], (err, results) => {
         if (err) {
             console.error('Error fetching password:', err);
             return res.status(500).json({ error: 'Internal server error' });
@@ -569,7 +577,7 @@ router.post('/change-password', preventUnauthorisedAccess, (req, res) => {
 
                 // Update the password in the database
                 const sqlUpdate = 'UPDATE Users SET password = ? WHERE id = ?';
-                connection.query(sqlUpdate, [hashedPassword, userId], (err, result) => {
+                mysqlConnection.query(sqlUpdate, [hashedPassword, userId], (err, result) => {
                     if (err) {
                         console.error('Error updating password:', err);
                         return res.status(500).json({ error: 'Internal server error' });
@@ -587,7 +595,7 @@ router.post('/login', preventLoggedInAccess, (req, res) => {
     const { username, password } = req.body;
 
     const sql = 'SELECT * FROM Users WHERE username = ?';
-    connection.query(sql, [username], (err, results) => {
+    mysqlConnection.query(sql, [username], (err, results) => {
         if (err) {
             console.error('Database error:', err);
             req.session.error_msg = 'Internal server error';
@@ -670,18 +678,18 @@ router.get('/admin/products', isAdmin, (req, res, next) => {
     const labelPattern = `%${labelFilter}%`;
     const brandPattern = `%${brandFilter}%`;
 
-    connection.query(countQuery, [labelPattern, minPrice, maxPrice, brandPattern], (err, countResult) => {
+    mysqlConnection.query(countQuery, [labelPattern, minPrice, maxPrice, brandPattern], (err, countResult) => {
         if (err) {
             return next(err);
         }
         const totalProducts = countResult[0].count;
         const totalPages = Math.ceil(totalProducts / limit);
 
-        connection.query(productsQuery, [labelPattern, minPrice, maxPrice, brandPattern, limit, offset], (err, productsResult) => {
+        mysqlConnection.query(productsQuery, [labelPattern, minPrice, maxPrice, brandPattern, limit, offset], (err, productsResult) => {
             if (err) {
                 return next(err);
             }
-            connection.query(brandQeury, (err, brandResults) => {
+            mysqlConnection.query(brandQeury, (err, brandResults) => {
                 if (err) {
                     return next(err);
                 }
@@ -721,14 +729,14 @@ router.get('/admin/users', isAdmin, (req, res, next) => {
     sql += ' LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    connection.query(countSql, countParams, (err, countResults) => {
+    mysqlConnection.query(countSql, countParams, (err, countResults) => {
         if (err) {
             return next(err);
         }
         const totalUsers = countResults[0].count;
         const totalPages = Math.ceil(totalUsers / limit);
 
-        connection.query(sql, params, (err, results) => {
+        mysqlConnection.query(sql, params, (err, results) => {
             if (err) {
                 return next(err);
             }
@@ -757,7 +765,7 @@ router.post('/admin/add_user', isAdmin, (req, res, next) => {
     const sql = 'INSERT INTO Users (role, username, email, password, age, gender) VALUES (?, ?, ?, ?, ?, ?)';
     const params = [role, username, email, hashedPassword, age, gender];
 
-    connection.query(sql, params, (err, results) => {
+    mysqlConnection.query(sql, params, (err, results) => {
         if (err) {
             return next(err);
         }
@@ -772,7 +780,7 @@ router.post('/admin/users/:id/delete', isAdmin, (req, res, next) => {
         return res.status(400).send('You cannot delete your own account');
     } else {
         const sql = 'DELETE FROM Users WHERE UserID = ?';
-        connection.query(sql, [userId], (err, result) => {
+        mysqlConnection.query(sql, [userId], (err, result) => {
             if (err) {
                 return next(err);
             }
@@ -786,7 +794,7 @@ router.get('/admin/users/:id/edit', isAdmin, (req, res, next) => {
     const userId = req.params.id;
     const sql = 'SELECT * FROM Users WHERE UserID = ?';
 
-    connection.query(sql, [userId], (err, results) => {
+    mysqlConnection.query(sql, [userId], (err, results) => {
         if (err) {
             return next(err);
         }
@@ -813,7 +821,7 @@ router.post('/admin/users/:id/edit', isAdmin, (req, res, next) => {
         params = [role, username, email, hashedPassword, age, gender, userId];
     }
 
-    connection.query(sql, params, (err, results) => {
+    mysqlConnection.query(sql, params, (err, results) => {
         if (err) {
             return next(err);
         }
@@ -832,10 +840,10 @@ router.get('/admin/reviews', isAdmin, (req, res, next) => {
 
     let filterQuery = '';
     if (productFilter) {
-        filterQuery += ` AND r.prodID = ${connection.escape(productFilter)}`;
+        filterQuery += ` AND r.prodID = ${mysqlConnection.escape(productFilter)}`;
     }
     if (userFilter) {
-        filterQuery += ` AND r.userID = ${connection.escape(userFilter)}`;
+        filterQuery += ` AND r.userID = ${mysqlConnection.escape(userFilter)}`;
     }
 
     const sqlCount = `
@@ -857,7 +865,7 @@ router.get('/admin/reviews', isAdmin, (req, res, next) => {
     `;
 
     // Get total count of reviews
-    connection.query(sqlCount, (err, countResults) => {
+    mysqlConnection.query(sqlCount, (err, countResults) => {
         if (err) {
             return next(err);
         }
@@ -866,19 +874,19 @@ router.get('/admin/reviews', isAdmin, (req, res, next) => {
         const totalPages = Math.ceil(totalItems / itemsPerPage);
 
         // Get reviews with pagination and filtering
-        connection.query(sqlData, (err, reviewResults) => {
+        mysqlConnection.query(sqlData, (err, reviewResults) => {
             if (err) {
                 return next(err);
             }
 
             // Get the list of products for the filter sidebar
-            connection.query('SELECT ProdID, name FROM Products', (err, productResults) => {
+            mysqlConnection.query('SELECT ProdID, name FROM Products', (err, productResults) => {
                 if (err) {
                     return next(err);
                 }
 
                 // Get the list of users for the filter sidebar
-                connection.query(`SELECT UserID, username FROM Users WHERE role = 'viewer'`, (err, userResults) => {
+                mysqlConnection.query(`SELECT UserID, username FROM Users WHERE role = 'viewer'`, (err, userResults) => {
                     if (err) {
                         return next(err);
                     }
@@ -905,17 +913,17 @@ router.get('/admin/add_product', isAdmin, (req, res, next) => {
     const skinTypeSql = 'SELECT * FROM Skin_Types';
     const ingredientsSql = 'SELECT * FROM Ingredients ORDER BY ing_name ASC';
 
-    connection.query(brandSql, (err, brandResults) => {
+    mysqlConnection.query(brandSql, (err, brandResults) => {
         if (err) {
             return next(err);
         }
 
-        connection.query(skinTypeSql, (err, skinTypeResults) => {
+        mysqlConnection.query(skinTypeSql, (err, skinTypeResults) => {
             if (err) {
                 return next(err);
             }
 
-            connection.query(ingredientsSql, (err, ingredientResults) => {
+            mysqlConnection.query(ingredientsSql, (err, ingredientResults) => {
                 if (err) {
                     return next(err);
                 }
@@ -938,7 +946,7 @@ router.post('/admin/add_product', isAdmin, (req, res, next) => {
     const sql = 'INSERT INTO Products (name, label, brandID, price, skin_typeID) VALUES (?, ?, ?, ?, ?)';
     const params = [name, label, brandID, price, skin_typeID];
 
-    connection.query(sql, params, (err, results) => {
+    mysqlConnection.query(sql, params, (err, results) => {
         if (err) {
             return next(err);
         }
@@ -950,7 +958,7 @@ router.post('/admin/add_product', isAdmin, (req, res, next) => {
             const mappingSql = 'INSERT INTO Prod_Ing_Mapping (ProdID, IngID) VALUES ?';
             const mappingParams = ingredients.map(ingID => [prodID, ingID]);
 
-            connection.query(mappingSql, [mappingParams], (err) => {
+            mysqlConnection.query(mappingSql, [mappingParams], (err) => {
                 if (err) {
                     return next(err);
                 }
@@ -968,14 +976,14 @@ router.post('/admin/products/:id/delete', isAdmin, (req, res, next) => {
     const id = req.params.id;
     // Delete mappings from Prod_Ing_Mapping table
     const deleteMappingsSql = 'DELETE FROM Prod_Ing_Mapping WHERE ProdID = ?';
-    connection.query(deleteMappingsSql, [id], (err, deleteMappingsResult) => {
+    mysqlConnection.query(deleteMappingsSql, [id], (err, deleteMappingsResult) => {
         if (err) {
             return next(err);
         }
 
         // Delete product from Products table
         const deleteProductSql = 'DELETE FROM Products WHERE ProdID = ?';
-        connection.query(deleteProductSql, [id], (err, deleteProductResult) => {
+        mysqlConnection.query(deleteProductSql, [id], (err, deleteProductResult) => {
             if (err) {
                 return next(err);
             }
@@ -990,7 +998,7 @@ router.get('/admin/products/:id/edit', isAdmin, (req, res, next) => {
 
     // Fetch product details based on ProdID
     let sql = 'SELECT * FROM Products WHERE ProdID = ?';
-    connection.query(sql, [id], (err, productResults) => {
+    mysqlConnection.query(sql, [id], (err, productResults) => {
         if (err) {
             return next(err);
         }
@@ -1014,7 +1022,7 @@ router.get('/admin/products/:id/edit', isAdmin, (req, res, next) => {
         .then(([brands, skinTypes, ingredients]) => {
             // Fetch product's associated ingredients
             const prodIngSql = 'SELECT IngID FROM Prod_Ing_Mapping WHERE ProdID = ?';
-            connection.query(prodIngSql, [id], (err, prodIngResults) => {
+            mysqlConnection.query(prodIngSql, [id], (err, prodIngResults) => {
                 if (err) {
                     return next(err);
                 }
@@ -1045,14 +1053,14 @@ router.post('/admin/products/:id', isAdmin, (req, res, next) => {
     const updateSql = 'UPDATE Products SET name = ?, label = ?, brandID = ?, price = ?, skin_typeID = ? WHERE ProdID = ?';
     const updateParams = [name, label, brandID, price, skin_typeID, id];
 
-    connection.query(updateSql, updateParams, (err, updateResult) => {
+    mysqlConnection.query(updateSql, updateParams, (err, updateResult) => {
         if (err) {
             return next(err);
         }
 
         // Update ingredients mapping for the product
         const deleteSql = 'DELETE FROM Prod_Ing_Mapping WHERE ProdID = ?'; // Adjust this query if necessary
-        connection.query(deleteSql, [id], (err, deleteResult) => {
+        mysqlConnection.query(deleteSql, [id], (err, deleteResult) => {
             if (err) {
                 return next(err);
             }
@@ -1060,7 +1068,7 @@ router.post('/admin/products/:id', isAdmin, (req, res, next) => {
             const insertSql = 'INSERT INTO Prod_Ing_Mapping (ProdID, IngID) VALUES ?';
             const insertValues = ingredients.map(ingID => [id, ingID]);
 
-            connection.query(insertSql, [insertValues], (err, insertResult) => {
+            mysqlConnection.query(insertSql, [insertValues], (err, insertResult) => {
                 if (err) {
                     return next(err);
                 }
@@ -1072,6 +1080,75 @@ router.post('/admin/products/:id', isAdmin, (req, res, next) => {
     });
 });
 
+// Route to handle adding a product to favourites
+router.get('/favourites', preventUnauthorisedAccess, async (req, res, next) => {
+    const user = req.session.user;
+
+    try {
+        // Connect to MongoDB
+        const db = await connectToMongoDB();
+        const collection = db.collection("favourites");
+
+        // Fetch favourite product IDs from MongoDB
+        const data = await collection.findOne({ userID: user.id });
+        
+        if (!data || !data.favourite_prodID || data.favourite_prodID.length === 0) {
+            // No favourites found
+            return res.render('favourites', { favourites: [], user: user });
+        }
+
+        const productids = data.favourite_prodID;
+        const placeholders = productids.map(() => '?').join(', ');
+
+        // MySQL query
+        const getProductsQuery = `SELECT * FROM Products WHERE ProdID IN (${placeholders})`;
+
+        // Use promise-based query for MySQL
+        const [products] = await mysqlConnection.promise().query(getProductsQuery, productids);
+        
+        // Render results
+        res.render('favourites', { favourites: products, user: user });
+
+    } catch (err) {
+        console.error('Error fetching data:', err);
+        res.status(500).send('Error fetching data');
+    } finally {
+        // Ensure MongoDB connection is closed if it's not needed further
+        await closeMongoDBConnection();
+    }
+});
+
+// Route to handle adding a product to favourites
+router.post('/toggle_favorite/:productId', preventUnauthorisedAccess, async (req, res) => {
+    let { productId } = req.params;
+    const { remove } = req.body;
+    const userId = req.session.user.id;
+    productId = parseInt(productId, 10);
+
+    if (isNaN(productId)) {
+        return res.status(400).send('Invalid product ID');
+    }
+
+    try {
+        const db = await connectToMongoDB();
+        const favouritesCollection = db.collection("favourites");
+        
+        const update = remove
+            ? { $pull: { favourite_prodID: productId } }
+            : { $addToSet: { favourite_prodID: productId } };
+
+        await favouritesCollection.updateOne(
+            { userID: userId },
+            update,
+            { upsert: true }
+        );
+
+        res.status(200).send('Favorite status updated');
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).send('Error updating favorite status');
+    }
+});
 
 
 module.exports = router;

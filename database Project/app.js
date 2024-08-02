@@ -3,9 +3,13 @@ const path = require('path');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const routes = require('./routes/routes'); // Adjust the path as per your project structure
+const { mysqlConnection, connectToMongoDB } = require('./config/database'); // Import both connections
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Connect to MongoDB
+connectToMongoDB().catch(console.dir);
 
 // Body parser middleware
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -27,7 +31,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Middleware to set global variables
 app.use((req, res, next) => {
-    // Example of setting global variables (if needed)
     res.locals.currentUser = req.session.user; // Example: storing user information
     next();
 });
@@ -36,14 +39,8 @@ app.use((req, res, next) => {
 app.use('/', routes);
 
 // Handle 404 errors
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(400).send('Not Found!');
-});
-
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send('Something broke!');
+app.use((req, res, next) => {
+    res.status(404).send('Not Found!');
 });
 
 // Error handling middleware
