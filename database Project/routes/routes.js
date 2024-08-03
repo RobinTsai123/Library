@@ -1166,7 +1166,6 @@ router.post('/search_user', preventUnauthorisedAccess, (req, res) => {
     });
 });
 
-// Route to display user profile
 router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) => {
     const user = req.session.user;
     let { userId } = req.params;
@@ -1212,23 +1211,32 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                 // Extract favourite product IDs
                 const favourites = data ? data.favourite_prodID || [] : [];
 
+                let productResults = [];
                 if (favourites.length > 0) {
                     // Fetch product details from MySQL based on favourite product IDs
                     const productSql = 'SELECT * FROM Products WHERE ProdID IN (?)';
-                    mysqlConnection.query(productSql, [favourites], (err, productResults) => {
-                        if (err) {
-                            console.error('Error fetching products:', err);
-                            return res.status(500).send('Error fetching products');
-                        }
-
-                        // Render the user profile with favourite products
-                        res.render('user_profile', { userProfile: userProfile, favourites: productResults, user: user, isFollowing });
-                    });
-                } else {
-                    // Render the user profile without favourite products
-                    res.render('user_profile', { userProfile: userProfile, favourites: [], user: user, isFollowing });
+                    productResults = await mysqlConnection.promise().query(productSql, [favourites]);
                 }
-                
+
+                // Fetch reviews for the user
+                const reviewsSql = `
+                    SELECT r.*, p.name as product_name, u.username as reviewer_username
+                    FROM Reviews r 
+                    JOIN Products p ON r.prodID = p.ProdID 
+                    JOIN Users u ON r.userID = u.UserID 
+                    WHERE r.userID = ?
+                `;
+                const [reviewResults] = await mysqlConnection.promise().query(reviewsSql, [userId]);
+
+                // Render the user profile with favourite products and reviews
+                res.render('user_profile', {
+                    userProfile: userProfile,
+                    favourites: productResults[0],
+                    reviews: reviewResults,
+                    user: user,
+                    isFollowing
+                });
+
                 // Close MongoDB connection
                 await closeMongoDBConnection();
                 
@@ -1241,6 +1249,7 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
         }
     });
 });
+
 
 // Function to create a user if they don't exist
 async function ensureUserExists(userId) {

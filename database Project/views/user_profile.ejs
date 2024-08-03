@@ -37,6 +37,22 @@
                     <% } else { %>
                         <p class="text-muted">No favorite products found.</p>
                     <% } %>
+
+                    <h5 class="card-title mt-4">Reviews:</h5>
+                    <% if (reviews.length > 0) { %>
+                        <ul class="list-group">
+                            <% reviews.forEach(review => { %>
+                                <li class="list-group-item">
+                                    <h5 class="mb-0"><%= review.product_name %></h5>
+                                    <p class="mb-0 text-muted">Rating: <%= review.user_rating %> / 5</p>
+                                    <p class="mb-0"><%= review.review %></p>
+                                    <small class="text-muted">Reviewed by <%= review.reviewer_username %> on <%= review.created_at %></small>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <p class="text-muted">No reviews found.</p>
+                    <% } %>
                 </div>
             </div>
         </div>
