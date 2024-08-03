@@ -34,16 +34,19 @@
                                 <a class="nav-link" href="/best_rated_products">Best Rated</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/review_list">My Reviews</a>
-                            </li>
-                            <li class="nav-item">
-                                <form class="d-flex" action="/search" method="GET">
+                                <form class="d-flex" action="/search_user" method="POST">
                                     <input class="form-control me-2" type="search" placeholder="Search username" aria-label="Search" name="username">
                                     <button class="btn btn-outline-success" type="submit">Search</button>
                                 </form>
                             </li>
                     </ul>
                     <ul class="navbar-nav justify-content-end">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/my_following">My Followings</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/review_list">My Reviews</a>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" href="/favourites">My Favourites</a>
                         </li>

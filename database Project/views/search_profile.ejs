@@ -1,0 +1,35 @@
+<% if (user.role == 'admin') { %>
+    <%- include('admin/layout', { title: 'Searched User', body:`` }) %>
+<% } else { %>
+    <%- include('layout', { title: 'Searched User', body:`` }) %>
+<% } %>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card shadow-lg mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Searched Users</h4>
+            </div>
+            <div class="card-body">
+                <% if (results.length > 0) { %>
+                    <ul class="list-group">
+                        <% results.forEach(result => { %>
+                            <li class="list-group-item">
+                                <a href="/user_profile/<%= result.UserID %>" class="text-decoration-none text-dark">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="mb-0"><%= result.username %></h5>
+                                            <p class="mb-0 text-muted"><%= result.email %></p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </li>
+                        <% }); %>
+                    </ul>
+                <% } else { %>
+                    <p class="text-muted">No users found.</p>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>

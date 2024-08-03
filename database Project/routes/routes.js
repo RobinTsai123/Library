@@ -1150,45 +1150,196 @@ router.post('/toggle_favorite/:productId', preventUnauthorisedAccess, async (req
     }
 });
 
-
 // Route to handle looking up a user by username
-// router.get('/search_user', preventUnauthorisedAccess, (req, res) => {
-//     const { username } = req.query;
-//     const sql = 'SELECT * FROM Users WHERE username = ?';
-//     mysqlConnection.query(sql, [username], (err, results) => {
-//         if (err) {
-//             return res.status(500).send('Error searching for user');
-//         }
-//         res.render('search_profile', results);
-//     });
-// });
+router.post('/search_user', preventUnauthorisedAccess, (req, res) => {
+    const user = req.session.user;
+    const { username } = req.body; // Access POST data from req.body
 
+    const sql = 'SELECT * FROM Users WHERE username = ?';
+    mysqlConnection.query(sql, [username], (err, results) => {
+        if (err) {
+            console.error('Error searching for user:', err);
+            return res.status(500).send('Error searching for user');
+        }
+        // Render the search_profile view with results and user data
+        res.render('search_profile', { results, user });
+    });
+});
 
-// router.post('/toggle_follow/:userId', preventUnauthorisedAccess, async (req, res) => {
-//     const { userId } = req.params;
-//     const { follow } = req.body;
-//     const currentUserId = req.session.user.id;
+// Route to display user profile
+router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) => {
+    const user = req.session.user;
+    const { userId } = req.params;
 
-//     if (userId === currentUserId) {
-//         return res.status(400).send('Cannot follow yourself');
-//     }
+    // Fetch user profile from MySQL
+    const sql = 'SELECT * FROM Users WHERE UserID = ?';
+    mysqlConnection.query(sql, [userId], async (err, results) => {
+        if (err) {
+            console.error('Error searching for user:', err);
+            return res.status(500).send('Error searching for user');
+        }
 
-//     try {
-//         const session = await connectToNeo4j();
+        if (results.length > 0) {
+            const userProfile = results[0];
 
-//         const query = follow
-//             ? 'MERGE (a:User {id: $currentUserId}) MERGE (b:User {id: $userId}) MERGE (a)-[:FOLLOWS]->(b)'
-//             : 'MATCH (a:User {id: $currentUserId}) MATCH (b:User {id: $userId}) OPTIONAL MATCH (a)-[r:FOLLOWS]->(b) DELETE r';
+            let isFollowing = false;
+            let session;
+            try {
+                // Check if the current user is following the profile user
+                session = await connectToNeo4j();
+                const followResult = await session.run(
+                    `MATCH (u:User {id: $currentUserId})-[:FOLLOWS]->(f:User {id: $userId})
+                     RETURN COUNT(f) AS count`,
+                    { currentUserId: user.id, userId }
+                );
+                isFollowing = followResult.records[0].get('count') > 0;
+            } catch (neo4jError) {
+                console.error('Error querying Neo4j:', neo4jError);
+                return res.status(500).send('Error querying Neo4j');
+            } finally {
+                if (session) {
+                    await closeNeo4jConnection(session);
+                }
+            }
 
-//         await session.run(query, { currentUserId, userId });
+            try {
+                // Fetch favourites from MongoDB
+                const db = await connectToMongoDB();
+                const collection = db.collection("favourites");
+                const data = await collection.findOne({ userID: parseInt(userId) });
 
-//         await closeNeo4jConnection(session);
-//         res.status(200).send(follow ? 'Followed successfully' : 'Unfollowed successfully');
-//     } catch (error) {
-//         console.error('Error:', error);
-//         res.status(500).send('Error updating follow status');
-//     }
-// });
+                // Extract favourite product IDs
+                const favourites = data ? data.favourite_prodID || [] : [];
+
+                if (favourites.length > 0) {
+                    // Fetch product details from MySQL based on favourite product IDs
+                    const productSql = 'SELECT * FROM Products WHERE ProdID IN (?)';
+                    mysqlConnection.query(productSql, [favourites], (err, productResults) => {
+                        if (err) {
+                            console.error('Error fetching products:', err);
+                            return res.status(500).send('Error fetching products');
+                        }
+
+                        // Render the user profile with favourite products
+                        res.render('user_profile', { user: userProfile, favourites: productResults, currentUser: user, isFollowing });
+                    });
+                } else {
+                    // Render the user profile without favourite products
+                    res.render('user_profile', { user: userProfile, favourites: [], currentUser: user, isFollowing });
+                }
+                
+                // Close MongoDB connection
+                await closeMongoDBConnection();
+                
+            } catch (mongoError) {
+                console.error('Error fetching favourites from MongoDB:', mongoError);
+                res.status(500).send('Error fetching favourites');
+            }
+        } else {
+            res.status(404).send('User not found');
+        }
+    });
+});
+
+// Function to create a user if they don't exist
+async function ensureUserExists(userId) {
+    const session = await connectToNeo4j();
+    try {
+        console.log(`Ensuring user exists with ID: ${userId}`);
+        await session.run(
+            `MERGE (u:User {id: $userId})
+             SET u.createdAt = datetime()`,
+            { userId }
+        );
+        console.log(`User with ID: ${userId} ensured.`);
+    } catch (error) {
+        console.error('Error ensuring user exists:', error);
+    } finally {
+        console.log('Closing Neo4j session.');
+        await closeNeo4jConnection(session);
+    }
+}
+
+// Route to follow/unfollow a user
+router.post('/follow_user/:userId', preventUnauthorisedAccess, async (req, res) => {
+    const { userId } = req.params;
+    const { follow } = req.body; // This will work with 'application/x-www-form-urlencoded'
+    const currentUserId = req.session.user.id;
+
+    if (userId === currentUserId) {
+        return res.status(400).send('Cannot follow yourself');
+    }
+
+    let session;
+    try {
+        session = await connectToNeo4j();
+        console.log('Connected to Neo4j.');
+
+        // Ensure both users exist
+        console.log('Ensuring current user exists.');
+        await ensureUserExists(currentUserId);
+        console.log('Ensuring target user exists.');
+        await ensureUserExists(userId);
+
+        // Define the Cypher query for follow/unfollow
+        const query = follow === 'true'
+            ? 'MERGE (a:User {id: $currentUserId}) MERGE (b:User {id: $userId}) MERGE (a)-[:FOLLOWS]->(b)'
+            : 'MATCH (a:User {id: $currentUserId}) MATCH (b:User {id: $userId}) OPTIONAL MATCH (a)-[r:FOLLOWS]->(b) DELETE r RETURN count(r) AS numDeleted';
+
+        console.log(`Executing query: ${query}`);
+        const result = await session.run(query, { currentUserId, userId });
+
+        if (follow === 'false') {
+            const numDeleted = result.records[0].get('numDeleted');
+            console.log(`Number of relationships deleted: ${numDeleted}`);
+        }
+
+        console.log(follow === 'true' ? `User ID ${currentUserId} followed User ID ${userId}` : `User ID ${currentUserId} unfollowed User ID ${userId}`);
+        res.status(200).send(follow === 'true' ? 'Followed successfully' : 'Unfollowed successfully');
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).send('Error updating follow status');
+    } finally {
+        if (session) {
+            console.log('Closing Neo4j session.');
+            await closeNeo4jConnection(session);
+        }
+    }
+});
+
+// Route to handle getting following
+router.get('/my_following', preventUnauthorisedAccess, async (req, res) => {
+    const user = req.session.user;
+    let session;
+    try {
+        session = await connectToNeo4j();
+
+        // Get the users that the current user is following
+        const result = await session.run(
+            `MATCH (u:User {id: $userId})-[:FOLLOWS]->(f:User)
+             RETURN f`,
+            { userId: parseInt(user.id, 10) }
+        );
+
+        const following = result.records.map(record => record.get('f').properties);
+        // Render the my_following view with the following users
+        mysqlConnection.query('SELECT * FROM Users WHERE UserID IN (?)', [following.map(user => user.id)], (err, results) => {
+            if (err) {
+                console.error('Error fetching following users:', err);
+                return res.status(500).send('Error fetching following users');
+            }
+            res.render('my_following', { following: results, user });
+        });
+
+    } catch (error) {
+        console.error('Error fetching following:', error);
+        res.status(500).send('Error fetching following');
+    } finally {
+        if (session) {
+            await closeNeo4jConnection(session);
+        }
+    }
+});
 
 
 module.exports = router;
