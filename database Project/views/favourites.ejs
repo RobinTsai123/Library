@@ -8,8 +8,17 @@
     <div class="row">
         <!-- Main content -->
         <div class="col-md-12">
-            <div class="row mb-4">
-                <h3 class="col-sm">My Favourites</h3>
+            <div class="row mb-4 align-items-center">
+                <h3 class="col-lg-2">My Favourites</h3>
+                <div class="col-lg-2">
+                    <!-- Toggle Public/Private Switch -->
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="privacySwitch" <% if (isPublic) { %>checked<% } %>>
+                        <label class="form-check-label" for="privacySwitch">
+                            <% if (isPublic) { %>Public<% } else { %>Private<% } %>
+                        </label>
+                    </div>
+                </div>
             </div>
             <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
                 <% if (favourites.length > 0) { %>
@@ -36,3 +45,29 @@
         </div>
     </div>
 </div>
+
+<!-- JavaScript for toggle switch -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const privacySwitch = document.getElementById('privacySwitch');
+
+    privacySwitch.addEventListener('change', () => {
+        const isPublic = privacySwitch.checked;
+        fetch('/toggle_favourites_privacy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ setting: isPublic ? 'public' : 'private' }).toString()
+        }).then(response => {
+            if (response.ok) {
+                // Reload the page to reflect the changes
+                window.location.reload();
+            } else {
+                alert('Error processing privacy request');
+            }
+        }).catch(error => {
+            console.error('Error:', error);
+            alert('Error processing privacy request');
+        });
+    });
+});
+</script>

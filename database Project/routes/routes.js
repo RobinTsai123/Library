@@ -61,6 +61,7 @@ function queryPromise(sql, params) {
         });
     });
 }
+
 // Default routes
 router.get('/', preventLoggedInAccess,(req, res) => {
     res.render('index');
@@ -264,7 +265,6 @@ router.get('/review_list', preventUnauthorisedAccess, (req, res, next) => {
     });
 });
 
-
 // individual product page
 router.get('/product_detail/:id', preventUnauthorisedAccess, async (req, res, next) => {
     const productId = req.params.id;
@@ -348,7 +348,6 @@ router.get('/product_detail/:id', preventUnauthorisedAccess, async (req, res, ne
         await closeMongoDBConnection();
     }
 });
-
 
 // Route to handle updating a review
 router.post('/update_review/:productId', preventUnauthorisedAccess, (req, res, next) => {
@@ -485,7 +484,6 @@ router.get('/edit_profile', preventUnauthorisedAccess, (req, res) => {
 router.post('/edit_profile', preventUnauthorisedAccess, (req, res, next) => {
     const userId = req.session.user.id;
     const { username, email, password, age, gender } = req.body;
-    console.log(userId, username, email, password, age, gender);
 
     // Update query without password
     let sql = 'UPDATE Users SET username = ?, email = ?, age = ?, gender = ? WHERE UserID = ?';
@@ -926,8 +924,7 @@ router.get('/admin/add_product', isAdmin, (req, res, next) => {
             mysqlConnection.query(ingredientsSql, (err, ingredientResults) => {
                 if (err) {
                     return next(err);
-                }
-;
+                };
                 res.render('admin/add_product', {
                     brands: brandResults,
                     skinTypes: skinTypeResults,
@@ -937,7 +934,6 @@ router.get('/admin/add_product', isAdmin, (req, res, next) => {
         });
     });
 });
-
 
 // Route to handle the form submission of adding a product
 router.post('/admin/add_product', isAdmin, (req, res, next) => {
@@ -1089,12 +1085,12 @@ router.get('/favourites', preventUnauthorisedAccess, async (req, res, next) => {
         const db = await connectToMongoDB();
         const collection = db.collection("favourites");
 
-        // Fetch favourite product IDs from MongoDB
+        // Fetch favourite product IDs and settings from MongoDB
         const data = await collection.findOne({ userID: user.id });
         
         if (!data || !data.favourite_prodID || data.favourite_prodID.length === 0) {
             // No favourites found
-            return res.render('favourites', { favourites: [], user: user });
+            return res.render('favourites', { favourites: [], user: user, isPublic: false });
         }
 
         const productids = data.favourite_prodID;
@@ -1106,12 +1102,46 @@ router.get('/favourites', preventUnauthorisedAccess, async (req, res, next) => {
         // Use promise-based query for MySQL
         const [products] = await mysqlConnection.promise().query(getProductsQuery, productids);
         
+        // Get the public/private setting
+        const isPublic = data.setting === 'public';
+
         // Render results
-        res.render('favourites', { favourites: products, user: user });
+        res.render('favourites', { favourites: products, user: user, isPublic: isPublic });
 
     } catch (err) {
         console.error('Error fetching data:', err);
         res.status(500).send('Error fetching data');
+    } finally {
+        // Ensure MongoDB connection is closed if it's not needed further
+        await closeMongoDBConnection();
+    }
+});
+
+// Route to handle privacy setting for favourites
+router.post('/toggle_favourites_privacy', preventUnauthorisedAccess, async (req, res) => {
+    const user = req.session.user;
+    const { setting } = req.body; // 'public' or 'private'
+
+    if (!['public', 'private'].includes(setting)) {
+        return res.status(400).send('Invalid setting');
+    }
+
+    try {
+        // Connect to MongoDB
+        const db = await connectToMongoDB();
+        const collection = db.collection("favourites");
+
+        // Update the privacy setting
+        await collection.updateOne(
+            { userID: user.id },
+            { $set: { setting } }
+        );
+
+        // Respond with success
+        res.status(200).send('Privacy setting updated');
+    } catch (err) {
+        console.error('Error updating privacy setting:', err);
+        res.status(500).send('Error updating privacy setting');
     } finally {
         // Ensure MongoDB connection is closed if it's not needed further
         await closeMongoDBConnection();
@@ -1153,19 +1183,25 @@ router.post('/toggle_favorite/:productId', preventUnauthorisedAccess, async (req
 // Route to handle looking up a user by username
 router.post('/search_user', preventUnauthorisedAccess, (req, res) => {
     const user = req.session.user;
-    const { username } = req.body; // Access POST data from req.body
+    const { searchTerm } = req.body; // Access POST data from req.body
 
-    const sql = 'SELECT * FROM Users WHERE username = ?';
-    mysqlConnection.query(sql, [username], (err, results) => {
+    if (!searchTerm) {
+        return res.status(400).send('Search term is required');
+    }
+
+    // SQL query to search for usernames containing the searchTerm
+    const sql = 'SELECT * FROM Users WHERE username LIKE ?';
+    mysqlConnection.query(sql, [`%${searchTerm}%`], (err, results) => {
         if (err) {
-            console.error('Error searching for user:', err);
-            return res.status(500).send('Error searching for user');
+            console.error('Error searching for users:', err);
+            return res.status(500).send('Error searching for users');
         }
         // Render the search_profile view with results and user data
         res.render('search_profile', { results, user });
     });
 });
 
+// Route to handle search user profile
 router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) => {
     const user = req.session.user;
     let { userId } = req.params;
@@ -1177,7 +1213,6 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
 
         if (userProfileResults.length > 0) {
             const userProfile = userProfileResults[0];
-            console.log('User Profile:', userProfile);
 
             let isFollowing = false;
             let followersCount = 0;
@@ -1193,7 +1228,6 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                     { currentUserId: user.id, userId }
                 );
                 isFollowing = followResult.records[0].get('count') > 0;
-                console.log('Is Following:', isFollowing);
 
                 const followersResult = await session.run(
                     `MATCH (u:User {id: $userId})<-[:FOLLOWS]-(f:User)
@@ -1201,7 +1235,6 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                     { userId }
                 );
                 followersCount = followersResult.records[0].get('followersCount').low;
-                console.log('Followers Count:', followersCount);
 
                 const followingResult = await session.run(
                     `MATCH (u:User {id: $userId})-[:FOLLOWS]->(f:User)
@@ -1209,7 +1242,6 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                     { userId }
                 );
                 followingCount = followingResult.records[0].get('followingCount').low;
-                console.log('Following Count:', followingCount);
 
             } catch (neo4jError) {
                 console.error('Error querying Neo4j:', neo4jError);
@@ -1226,15 +1258,15 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                 const data = await collection.findOne({ userID: parseInt(userId) });
 
                 const favourites = data ? data.favourite_prodID || [] : [];
-                console.log('Favourites:', favourites);
 
                 let productResults = [];
                 if (favourites.length > 0) {
                     const productSql = 'SELECT * FROM Products WHERE ProdID IN (?)';
                     [productResults] = await mysqlConnection.promise().query(productSql, [favourites]);
-                    console.log('Product Results:', productResults);
                 }
+                const isPublic = data ? data.setting === 'public' : false;
 
+                // Fetch reviews for the user
                 const reviewsSql = `
                     SELECT r.*, p.name as product_name, u.username as reviewer_username
                     FROM Reviews r 
@@ -1243,7 +1275,6 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                     WHERE r.userID = ?
                 `;
                 const [reviewResults] = await mysqlConnection.promise().query(reviewsSql, [userId]);
-                console.log('Review Results:', reviewResults);
 
                 res.render('user_profile', {
                     userProfile: userProfile,
@@ -1251,6 +1282,9 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                     reviews: reviewResults,
                     user: user,
                     isFollowing,
+                    followersCount,
+                    followingCount,
+                    isPublic,
                     followersCount,
                     followingCount
                 });
@@ -1270,24 +1304,18 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
     }
 });
 
-
-
-
 // Function to create a user if they don't exist
 async function ensureUserExists(userId) {
     const session = await connectToNeo4j();
     try {
-        console.log(`Ensuring user exists with ID: ${userId}`);
         await session.run(
             `MERGE (u:User {id: $userId})
              SET u.createdAt = datetime()`,
             { userId }
         );
-        console.log(`User with ID: ${userId} ensured.`);
     } catch (error) {
         console.error('Error ensuring user exists:', error);
     } finally {
-        console.log('Closing Neo4j session.');
         await closeNeo4jConnection(session);
     }
 }
@@ -1306,12 +1334,8 @@ router.post('/follow_user/:userId', preventUnauthorisedAccess, async (req, res) 
     let session;
     try {
         session = await connectToNeo4j();
-        console.log('Connected to Neo4j.');
 
-        // Ensure both users exist
-        console.log('Ensuring current user exists.');
         await ensureUserExists(currentUserId);
-        console.log('Ensuring target user exists.');
         await ensureUserExists(userId);
 
         // Define the Cypher query for follow/unfollow
@@ -1319,22 +1343,18 @@ router.post('/follow_user/:userId', preventUnauthorisedAccess, async (req, res) 
             ? 'MERGE (a:User {id: $currentUserId}) MERGE (b:User {id: $userId}) MERGE (a)-[:FOLLOWS]->(b)'
             : 'MATCH (a:User {id: $currentUserId}) MATCH (b:User {id: $userId}) OPTIONAL MATCH (a)-[r:FOLLOWS]->(b) DELETE r RETURN count(r) AS numDeleted';
 
-        console.log(`Executing query: ${query}`);
         const result = await session.run(query, { currentUserId, userId });
 
         if (follow === 'false') {
             const numDeleted = result.records[0].get('numDeleted');
-            console.log(`Number of relationships deleted: ${numDeleted}`);
         }
 
-        console.log(follow === 'true' ? `User ID ${currentUserId} followed User ID ${userId}` : `User ID ${currentUserId} unfollowed User ID ${userId}`);
         res.status(200).send(follow === 'true' ? 'Followed successfully' : 'Unfollowed successfully');
     } catch (error) {
         console.error('Error:', error);
         res.status(500).send('Error updating follow status');
     } finally {
         if (session) {
-            console.log('Closing Neo4j session.');
             await closeNeo4jConnection(session);
         }
     }
@@ -1382,7 +1402,6 @@ router.get('/my_following', preventUnauthorisedAccess, async (req, res) => {
         }
     }
 });
-
 
 
 module.exports = router;

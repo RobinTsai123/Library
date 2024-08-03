@@ -20,25 +20,28 @@
                     </form>     
                     <% } %>               
                 </div>
+
                 <div class="card-body">
                     <h5 class="card-title">Username: <%= userProfile.username %></h5>
                     <p class="card-text"><strong>Email:</strong> <%= userProfile.email %></p>
                     <p class="card-text"><strong>Followers:</strong> <%= followersCount %></p>
                     <p class="card-text"><strong>Following:</strong> <%= followingCount %></p>
-
-
-                    <h5 class="card-title mt-4">Favorite Products:</h5>
-                    <% if (favourites.length > 0) { %>
-                        <ul class="list-group">
-                            <% favourites.forEach(product => { %>
-                                <li class="list-group-item">
-                                    <h5 class="mb-0"><%= product.name %></h5>
-                                    <p class="mb-0 text-muted">Price: $<%= product.price %></p>
-                                </li>
-                            <% }); %>
-                        </ul>
+                    <% if (isPublic) { %>
+                        <h5 class="card-title mt-4">Favorite Products:</h5>
+                        <% if (favourites.length > 0) { %>
+                            <ul class="list-group">
+                                <% favourites.forEach(product => { %>
+                                    <li class="list-group-item">
+                                        <h5 class="mb-0"><%= product.name %></h5>
+                                        <p class="mb-0 text-muted">Price: $<%= product.price %></p>
+                                    </li>
+                                <% }); %>
+                            </ul>
+                        <% } else { %>
+                            <p class="text-muted">No favorite products found.</p>
+                        <% } %>
                     <% } else { %>
-                        <p class="text-muted">No favorite products found.</p>
+                        <p class="text-muted">User favourites are private</p>
                     <% } %>
 
                     <h5 class="card-title mt-4">Reviews:</h5>
