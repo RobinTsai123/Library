@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const { mysqlConnection, connectToMongoDB, closeMongoDBConnection } = require('../config/database');
+const { mysqlConnection, connectToMongoDB, closeMongoDBConnection, connectToNeo4j, closeNeo4jConnection } = require('../config/database');
 const utils = require('../public/javascript/utils'); // Adjust the path as per your project structure
 
 // Middleware to check if user is admin
@@ -1149,6 +1149,46 @@ router.post('/toggle_favorite/:productId', preventUnauthorisedAccess, async (req
         res.status(500).send('Error updating favorite status');
     }
 });
+
+
+// Route to handle looking up a user by username
+// router.get('/search_user', preventUnauthorisedAccess, (req, res) => {
+//     const { username } = req.query;
+//     const sql = 'SELECT * FROM Users WHERE username = ?';
+//     mysqlConnection.query(sql, [username], (err, results) => {
+//         if (err) {
+//             return res.status(500).send('Error searching for user');
+//         }
+//         res.render('search_profile', results);
+//     });
+// });
+
+
+// router.post('/toggle_follow/:userId', preventUnauthorisedAccess, async (req, res) => {
+//     const { userId } = req.params;
+//     const { follow } = req.body;
+//     const currentUserId = req.session.user.id;
+
+//     if (userId === currentUserId) {
+//         return res.status(400).send('Cannot follow yourself');
+//     }
+
+//     try {
+//         const session = await connectToNeo4j();
+
+//         const query = follow
+//             ? 'MERGE (a:User {id: $currentUserId}) MERGE (b:User {id: $userId}) MERGE (a)-[:FOLLOWS]->(b)'
+//             : 'MATCH (a:User {id: $currentUserId}) MATCH (b:User {id: $userId}) OPTIONAL MATCH (a)-[r:FOLLOWS]->(b) DELETE r';
+
+//         await session.run(query, { currentUserId, userId });
+
+//         await closeNeo4jConnection(session);
+//         res.status(200).send(follow ? 'Followed successfully' : 'Unfollowed successfully');
+//     } catch (error) {
+//         console.error('Error:', error);
+//         res.status(500).send('Error updating follow status');
+//     }
+// });
 
 
 module.exports = router;
