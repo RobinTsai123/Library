@@ -7,6 +7,8 @@ This project is a database system designed for managing a skincare library. Its 
 - User Management: Keep track of customer information, including usernames, emails, and their reviews on skincare products.
 - Filter Functionality: Easily filter skincare products based on various criteria.
 - Review Functionality: Leave reviews on products for other users to see.
+- Favourites Functionality: Manage your favorite skincare products.
+- Follow User Functionality: Stay updated with the activities of other users.
 
 ## Installation
 1. Clone the repository: `git clone https://github.com/RobinTsai123/Library.git`
