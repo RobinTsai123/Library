@@ -12,7 +12,7 @@
                     <h4 class="mb-0">User Profile</h4>
                     <% if (parseInt(user.id, 10) != parseInt(userProfile.UserID, 10)) { %>
                     <!-- Follow/Unfollow Button -->
-                    <form id="followForm" action="/follow_user/<%= user.UserID %>" method="POST">
+                    <form id="followForm" action="/follow_user/<%= userProfile.UserID %>" method="POST">
                         <input type="hidden" name="follow" value="<%= isFollowing ? 'false' : 'true' %>">
                         <button type="submit" class="btn <% if (isFollowing) { %>btn-danger<% } else { %>btn-primary<% } %>">
                             <% if (isFollowing) { %>Unfollow<% } else { %>Follow<% } %>
