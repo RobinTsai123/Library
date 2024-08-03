@@ -1171,16 +1171,13 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
     let { userId } = req.params;
     userId = parseInt(userId, 10);
 
-    // Fetch user profile from MySQL
-    const sql = 'SELECT * FROM Users WHERE UserID = ?';
-    mysqlConnection.query(sql, [userId], async (err, results) => {
-        if (err) {
-            console.error('Error searching for user:', err);
-            return res.status(500).send('Error searching for user');
-        }
+    try {
+        // Fetch user profile from MySQL
+        const sql = 'SELECT * FROM Users WHERE UserID = ?';
+        const [userProfileResults] = await mysqlConnection.promise().query(sql, [userId]);
 
-        if (results.length > 0) {
-            const userProfile = results[0];
+        if (userProfileResults.length > 0) {
+            const userProfile = userProfileResults[0];
 
             let isFollowing = false;
             let session;
@@ -1195,7 +1192,7 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                 isFollowing = followResult.records[0].get('count') > 0;
             } catch (neo4jError) {
                 console.error('Error querying Neo4j:', neo4jError);
-                return res.status(500).send('Error querying Neo4j');
+                throw neo4jError;  // Rethrow to catch in outer try-catch
             } finally {
                 if (session) {
                     await closeNeo4jConnection(session);
@@ -1215,7 +1212,7 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                 if (favourites.length > 0) {
                     // Fetch product details from MySQL based on favourite product IDs
                     const productSql = 'SELECT * FROM Products WHERE ProdID IN (?)';
-                    productResults = await mysqlConnection.promise().query(productSql, [favourites]);
+                    [productResults] = await mysqlConnection.promise().query(productSql, [favourites]);
                 }
 
                 // Fetch reviews for the user
@@ -1231,7 +1228,7 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                 // Render the user profile with favourite products and reviews
                 res.render('user_profile', {
                     userProfile: userProfile,
-                    favourites: productResults[0],
+                    favourites: productResults,
                     reviews: reviewResults,
                     user: user,
                     isFollowing
@@ -1242,13 +1239,17 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                 
             } catch (mongoError) {
                 console.error('Error fetching favourites from MongoDB:', mongoError);
-                res.status(500).send('Error fetching favourites');
+                throw mongoError;  // Rethrow to catch in outer try-catch
             }
         } else {
             res.status(404).send('User not found');
         }
-    });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).send('An error occurred while processing your request. Please try again later or contact support.');
+    }
 });
+
 
 
 // Function to create a user if they don't exist
