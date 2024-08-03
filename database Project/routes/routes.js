@@ -1171,7 +1171,7 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
     const user = req.session.user;
     let { userId } = req.params;
     userId = parseInt(userId, 10);
-    
+
     // Fetch user profile from MySQL
     const sql = 'SELECT * FROM Users WHERE UserID = ?';
     mysqlConnection.query(sql, [userId], async (err, results) => {
@@ -1222,11 +1222,11 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                         }
 
                         // Render the user profile with favourite products
-                        res.render('user_profile', { user: userProfile, favourites: productResults, currentUser: user, isFollowing });
+                        res.render('user_profile', { userProfile: userProfile, favourites: productResults, user: user, isFollowing });
                     });
                 } else {
                     // Render the user profile without favourite products
-                    res.render('user_profile', { user: userProfile, favourites: [], currentUser: user, isFollowing });
+                    res.render('user_profile', { userProfile: userProfile, favourites: [], user: user, isFollowing });
                 }
                 
                 // Close MongoDB connection

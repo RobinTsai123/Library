@@ -1,4 +1,4 @@
-<% if (currentUser.role == 'admin') { %>
+<% if (user.role == 'admin') { %>
     <%- include('admin/layout', { title: 'User Profile', body:`` }) %>
 <% } else { %>
     <%- include('layout', { title: 'User Profile', body:`` }) %>
@@ -10,7 +10,7 @@
             <div class="card shadow-lg mb-4">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">User Profile</h4>
-                    <% if (parseInt(currentUser.id, 10) != parseInt(user.UserID, 10)) { %>
+                    <% if (parseInt(user.id, 10) != parseInt(userProfile.UserID, 10)) { %>
                     <!-- Follow/Unfollow Button -->
                     <form id="followForm" action="/follow_user/<%= user.UserID %>" method="POST">
                         <input type="hidden" name="follow" value="<%= isFollowing ? 'false' : 'true' %>">
@@ -21,8 +21,8 @@
                     <% } %>               
                 </div>
                 <div class="card-body">
-                    <h5 class="card-title">Username: <%= user.username %></h5>
-                    <p class="card-text">Email: <%= user.email %></p>
+                    <h5 class="card-title">Username: <%= userProfile.username %></h5>
+                    <p class="card-text">Email: <%= userProfile.email %></p>
 
                     <h5 class="card-title mt-4">Favorite Products:</h5>
                     <% if (favourites.length > 0) { %>
