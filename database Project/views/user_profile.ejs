@@ -10,13 +10,15 @@
             <div class="card shadow-lg mb-4">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">User Profile</h4>
+                    <% if (parseInt(currentUser.id, 10) != parseInt(user.UserID, 10)) { %>
                     <!-- Follow/Unfollow Button -->
                     <form id="followForm" action="/follow_user/<%= user.UserID %>" method="POST">
                         <input type="hidden" name="follow" value="<%= isFollowing ? 'false' : 'true' %>">
                         <button type="submit" class="btn <% if (isFollowing) { %>btn-danger<% } else { %>btn-primary<% } %>">
                             <% if (isFollowing) { %>Unfollow<% } else { %>Follow<% } %>
                         </button>
-                    </form>                    
+                    </form>     
+                    <% } %>               
                 </div>
                 <div class="card-body">
                     <h5 class="card-title">Username: <%= user.username %></h5>

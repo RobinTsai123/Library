@@ -1169,8 +1169,9 @@ router.post('/search_user', preventUnauthorisedAccess, (req, res) => {
 // Route to display user profile
 router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) => {
     const user = req.session.user;
-    const { userId } = req.params;
-
+    let { userId } = req.params;
+    userId = parseInt(userId, 10);
+    
     // Fetch user profile from MySQL
     const sql = 'SELECT * FROM Users WHERE UserID = ?';
     mysqlConnection.query(sql, [userId], async (err, results) => {
@@ -1262,9 +1263,10 @@ async function ensureUserExists(userId) {
 
 // Route to follow/unfollow a user
 router.post('/follow_user/:userId', preventUnauthorisedAccess, async (req, res) => {
-    const { userId } = req.params;
+    let { userId } = req.params;
     const { follow } = req.body; // This will work with 'application/x-www-form-urlencoded'
     const currentUserId = req.session.user.id;
+    userId = parseInt(userId, 10);
 
     if (userId === currentUserId) {
         return res.status(400).send('Cannot follow yourself');
@@ -1314,15 +1316,24 @@ router.get('/my_following', preventUnauthorisedAccess, async (req, res) => {
     try {
         session = await connectToNeo4j();
 
+        // Ensure the current user exists
+        await ensureUserExists(user.id);
+
         // Get the users that the current user is following
         const result = await session.run(
             `MATCH (u:User {id: $userId})-[:FOLLOWS]->(f:User)
              RETURN f`,
-            { userId: parseInt(user.id, 10) }
+            { userId: parseInt(user.id, 10)}
         );
 
         const following = result.records.map(record => record.get('f').properties);
-        // Render the my_following view with the following users
+        
+        // Handle case where there are no following users
+        if (following.length === 0) {
+            return res.render('my_following', { following: [], user });
+        }
+
+        // Execute the query to fetch following users from MySQL
         mysqlConnection.query('SELECT * FROM Users WHERE UserID IN (?)', [following.map(user => user.id)], (err, results) => {
             if (err) {
                 console.error('Error fetching following users:', err);
@@ -1340,6 +1351,7 @@ router.get('/my_following', preventUnauthorisedAccess, async (req, res) => {
         }
     }
 });
+
 
 
 module.exports = router;
