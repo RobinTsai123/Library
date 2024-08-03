@@ -22,7 +22,10 @@
                 </div>
                 <div class="card-body">
                     <h5 class="card-title">Username: <%= userProfile.username %></h5>
-                    <p class="card-text">Email: <%= userProfile.email %></p>
+                    <p class="card-text"><strong>Email:</strong> <%= userProfile.email %></p>
+                    <p class="card-text"><strong>Followers:</strong> <%= followersCount %></p>
+                    <p class="card-text"><strong>Following:</strong> <%= followingCount %></p>
+
 
                     <h5 class="card-title mt-4">Favorite Products:</h5>
                     <% if (favourites.length > 0) { %>

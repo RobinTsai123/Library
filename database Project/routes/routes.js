@@ -1172,27 +1172,48 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
     userId = parseInt(userId, 10);
 
     try {
-        // Fetch user profile from MySQL
         const sql = 'SELECT * FROM Users WHERE UserID = ?';
         const [userProfileResults] = await mysqlConnection.promise().query(sql, [userId]);
 
         if (userProfileResults.length > 0) {
             const userProfile = userProfileResults[0];
+            console.log('User Profile:', userProfile);
 
             let isFollowing = false;
+            let followersCount = 0;
+            let followingCount = 0;
             let session;
+
             try {
-                // Check if the current user is following the profile user
                 session = await connectToNeo4j();
+
                 const followResult = await session.run(
                     `MATCH (u:User {id: $currentUserId})-[:FOLLOWS]->(f:User {id: $userId})
                      RETURN COUNT(f) AS count`,
                     { currentUserId: user.id, userId }
                 );
                 isFollowing = followResult.records[0].get('count') > 0;
+                console.log('Is Following:', isFollowing);
+
+                const followersResult = await session.run(
+                    `MATCH (u:User {id: $userId})<-[:FOLLOWS]-(f:User)
+                     RETURN COUNT(f) AS followersCount`,
+                    { userId }
+                );
+                followersCount = followersResult.records[0].get('followersCount').low;
+                console.log('Followers Count:', followersCount);
+
+                const followingResult = await session.run(
+                    `MATCH (u:User {id: $userId})-[:FOLLOWS]->(f:User)
+                     RETURN COUNT(f) AS followingCount`,
+                    { userId }
+                );
+                followingCount = followingResult.records[0].get('followingCount').low;
+                console.log('Following Count:', followingCount);
+
             } catch (neo4jError) {
                 console.error('Error querying Neo4j:', neo4jError);
-                throw neo4jError;  // Rethrow to catch in outer try-catch
+                throw neo4jError;
             } finally {
                 if (session) {
                     await closeNeo4jConnection(session);
@@ -1200,22 +1221,20 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
             }
 
             try {
-                // Fetch favourites from MongoDB
                 const db = await connectToMongoDB();
                 const collection = db.collection("favourites");
                 const data = await collection.findOne({ userID: parseInt(userId) });
 
-                // Extract favourite product IDs
                 const favourites = data ? data.favourite_prodID || [] : [];
+                console.log('Favourites:', favourites);
 
                 let productResults = [];
                 if (favourites.length > 0) {
-                    // Fetch product details from MySQL based on favourite product IDs
                     const productSql = 'SELECT * FROM Products WHERE ProdID IN (?)';
                     [productResults] = await mysqlConnection.promise().query(productSql, [favourites]);
+                    console.log('Product Results:', productResults);
                 }
 
-                // Fetch reviews for the user
                 const reviewsSql = `
                     SELECT r.*, p.name as product_name, u.username as reviewer_username
                     FROM Reviews r 
@@ -1224,22 +1243,23 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
                     WHERE r.userID = ?
                 `;
                 const [reviewResults] = await mysqlConnection.promise().query(reviewsSql, [userId]);
+                console.log('Review Results:', reviewResults);
 
-                // Render the user profile with favourite products and reviews
                 res.render('user_profile', {
                     userProfile: userProfile,
                     favourites: productResults,
                     reviews: reviewResults,
                     user: user,
-                    isFollowing
+                    isFollowing,
+                    followersCount,
+                    followingCount
                 });
 
-                // Close MongoDB connection
                 await closeMongoDBConnection();
                 
             } catch (mongoError) {
                 console.error('Error fetching favourites from MongoDB:', mongoError);
-                throw mongoError;  // Rethrow to catch in outer try-catch
+                throw mongoError;
             }
         } else {
             res.status(404).send('User not found');
@@ -1249,6 +1269,7 @@ router.get('/user_profile/:userId', preventUnauthorisedAccess, async (req, res) 
         res.status(500).send('An error occurred while processing your request. Please try again later or contact support.');
     }
 });
+
 
 
 
