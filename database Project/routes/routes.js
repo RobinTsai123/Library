@@ -1097,7 +1097,17 @@ router.get('/favourites', preventUnauthorisedAccess, async (req, res, next) => {
         const placeholders = productids.map(() => '?').join(', ');
 
         // MySQL query
-        const getProductsQuery = `SELECT * FROM Products WHERE ProdID IN (${placeholders})`;
+        const getProductsQuery = `
+            SELECT p.*, b.brand_name, COALESCE(r.avg_rating, 0) AS avg_rating
+            FROM Products p
+            LEFT JOIN Brands b ON p.brandID = b.BrandID
+            LEFT JOIN (
+                SELECT prodID, AVG(user_rating) AS avg_rating
+                FROM Reviews
+                GROUP BY prodID
+            ) r ON p.ProdID = r.prodID
+            WHERE p.ProdID IN (${placeholders})
+        `;
 
         // Use promise-based query for MySQL
         const [products] = await mysqlConnection.promise().query(getProductsQuery, productids);
